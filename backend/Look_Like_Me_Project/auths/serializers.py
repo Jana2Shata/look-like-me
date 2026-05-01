@@ -1,10 +1,14 @@
 from dj_rest_auth.registration.serializers import RegisterSerializer, _signup_field_required
-from dj_rest_auth.serializers import UserDetailsSerializer
+from dj_rest_auth.serializers import (
+    UserDetailsSerializer, PasswordResetConfirmSerializer,
+    PasswordChangeSerializer,
+    )
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from allauth.account.adapter import get_adapter
-from .models import User
 
+from .models import User
+from .validators import validate_password
 class CustomRegisterSerializer(RegisterSerializer):
     "inherit FROM https://github.com/iMerica/dj-rest-auth/blob/master/dj_rest_auth/registration/serializers.py#L233"
     
@@ -37,32 +41,7 @@ class CustomRegisterSerializer(RegisterSerializer):
 
     def validate_password1(self, password):
 
-        # min 8 length ✅
-        # common / predectable ✅
-        
-        # has nums
-        if not any(char.isdigit() for char in password):
-            raise serializers.ValidationError("Password must contain at least one number.")
-        
-        # has letters
-        if not any(char.isalpha() for char in password):
-            raise serializers.ValidationError("Password must contain at least one letter.")
-        
-        # has special chars
-        if not any(char in '!@#$%^&*()_+-=[]{}|;:,.<>?/' for char in password):
-            raise serializers.ValidationError("Password must contain at least one special character.")
-        
-        # no spaces or quotes
-        if any(' ' in char for char in password):
-            raise serializers.ValidationError("Password must not contain spaces.")
-        
-        if any(char in ("'", '"') for char in password):
-            raise serializers.ValidationError("Password must not contain \' nor \".")
-        
-        # Has capital and small
-        if not any(char.isupper() for char in password) or not any(char.islower() for char in password):
-            raise serializers.ValidationError("Password must contain at least one uppercase and one lowercase letters.")
-        
+        password = validate_password(password)
 
         return super().validate_password1(password)
         
@@ -134,3 +113,23 @@ class UserProfileSerializer(serializers.HyperlinkedModelSerializer):
             'name': {'required': False}, # name is required
         }
         
+
+
+
+class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
+    
+    def custom_validation(self, attrs):
+
+        password = attrs.get('new_password1', '')
+        password = validate_password(password)
+        return get_adapter().clean_password(password)
+
+        
+
+class ValidationPasswordChangeSerializer(PasswordChangeSerializer):
+
+    def custom_validation(self, attrs):
+
+        password = attrs.get('new_password1', '')
+        password = validate_password(password)
+        return get_adapter().clean_password(password)

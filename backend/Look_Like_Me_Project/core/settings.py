@@ -242,8 +242,10 @@ REST_AUTH = {
     'LOGIN_SERIALIZER': 'dj_rest_auth.serializers.LoginSerializer',
     'TOKEN_MODEL': 'knox.models.AuthToken',
     "REST_SESSION_LOGIN": False, # Disable session cookies
-        # OLD_PASSWORD_FIELD_ENABLED - set it to True if you want to have old password verification on password change enpoint (default: False)
+    'OLD_PASSWORD_FIELD_ENABLED' : True, # to have old password verification on password change enpoint
         # LOGOUT_ON_PASSWORD_CHANGE - set to False if you want to keep the current user logged in after a password change
+    'PASSWORD_RESET_CONFIRM_SERIALIZER': 'auths.serializers.ValidationPasswordResetConfirmSerializer',
+    'PASSWORD_CHANGE_SERIALIZER' : 'auths.serializers.ValidationPasswordChangeSerializer',
 }
 
 
