@@ -44,6 +44,14 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 
+CORS_ALLOWED_ORIGINS =[
+    'http://127.0.0.1',
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://\w+\.pinggy\.net$",
+]
+
 # Application definition
 INSTALLED_APPS = [
     # admin contexts grouping
@@ -63,6 +71,9 @@ INSTALLED_APPS = [
     'django_extensions',
     'rest_framework',
     'django_filters',
+
+    # DRF's cross origin resources handling
+    'corsheaders',
 
     # Registration and authentication
     # 'rest_framework.authtoken',
@@ -90,6 +101,10 @@ AUTH_USER_MODEL = 'auths.User' # replaces the default User model with our custom
 MIDDLEWARE = [
     # defaults
     'django.middleware.security.SecurityMiddleware',
+
+        # "CORS handling middleware should be placed as high as possible,
+        # especially before any middleware that can generate responses.""
+        'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
