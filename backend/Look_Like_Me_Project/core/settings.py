@@ -33,7 +33,15 @@ SECRET_KEY = 'django-insecure-@5xtrpsf3fkbrv$%jkf3%7#(p(@iy=sg6mx!fzpn3&tg7n*2-^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'nmxsk-93-112-205-73.free.pinggy.net',
+    ]
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://127.0.0.1',
+    'https://nmxsk-93-112-205-73.free.pinggy.net',
+]
 
 
 # Application definition
@@ -200,7 +208,7 @@ REST_FRAMEWORK = {
 
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'knox.auth.TokenAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
         'django.contrib.auth.backends.ModelBackend', #Default authentication backend, needed for admin
      ],
 
@@ -241,7 +249,9 @@ REST_AUTH = {
     "USER_DETAILS_SERIALIZER":"auths.serializers.CustomUserDetailsSerializer",
     'LOGIN_SERIALIZER': 'dj_rest_auth.serializers.LoginSerializer',
     'TOKEN_MODEL': 'knox.models.AuthToken',
-    "REST_SESSION_LOGIN": False, # Disable session cookies
+    # "REST_SESSION_LOGIN": False, # Disable session cookies
+    "REST_SESSION_LOGIN": True, # Enable session cookies
+
     'OLD_PASSWORD_FIELD_ENABLED' : True, # to have old password verification on password change enpoint
         # LOGOUT_ON_PASSWORD_CHANGE - set to False if you want to keep the current user logged in after a password change
     'PASSWORD_RESET_CONFIRM_SERIALIZER': 'auths.serializers.ValidationPasswordResetConfirmSerializer',
