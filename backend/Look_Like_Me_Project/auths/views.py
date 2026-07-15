@@ -1,6 +1,6 @@
 # django imports
 from django.shortcuts import render
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 
@@ -53,21 +53,48 @@ class LoginView(LoginView):
 
 class LogoutView(LogoutView):
     # logout view extending KnoxLogoutView
+    authentication_classes = api_settings.DEFAULT_AUTHENTICATION_CLASSES
 
     def get_post_response(self, request):
 
         return Response({"detail": "Logged out successfully"}, status=status.HTTP_200_OK)      
     
 
+    def post(self, request, format=None):
+        # Override the post method to handle comprehensive logout
+        response = None
+        if request._auth is not None:
+            response = super().post(request, format=None)  # Knox deletes the json token
+        
+        logout(request)                                  # django deletes the session cookie
+
+        if not response:
+            response = self.get_post_response(request)
+
+        return response
+
 
 class LogoutAllView(LogoutAllView):
     # logout view extending KnoxLogoutView
+    authentication_classes = api_settings.DEFAULT_AUTHENTICATION_CLASSES
 
     def get_post_response(self, request):
 
         return Response({"detail": "Logged out successfully"}, status=status.HTTP_200_OK) 
 
+    def post(self, request, format=None):
+        # Override the post method to handle comprehensive logout
+        response = None
+        if request._auth is not None:
+            response = super().post(request, format=None)  # Knox deletes the json token
+        
+        logout(request)                                  # django deletes the session cookie
 
+        if not response:
+            response = self.get_post_response(request)
+
+        return response
+    
 
     # TODO define model serializer
 class ManageUserView(generics.RetrieveUpdateAPIView):
