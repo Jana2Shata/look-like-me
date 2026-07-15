@@ -1,0 +1,20 @@
+<div class="confirm-container">
+    <h2>Join the Community</h2>
+    {% if confirmation %}
+        <p>We're happy to see you on board, <strong>{{ confirmation.email_address.user }}</strong>!</p>
+        <p>Please confirm that <strong>{{ confirmation.email_address.email }}</strong> is your email address.</p>
+        
+        <form method="post" action="{% url 'account_confirm_email' confirmation.key %}">
+            {% csrf_token %}
+            <button type="submit" class="cta-button">Confirm</button>
+        </form>
+    {% else %}
+        <p>This confirmation link has expired or is invalid.</p>
+    {% endif %}
+</div>
+
+<style>
+    /* Use the same CSS from your email for consistency */
+    .confirm-container { text-align: center; padding: 50px; font-family: sans-serif; }
+    .cta-button { background-color: #534AB7; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; }
+</style>

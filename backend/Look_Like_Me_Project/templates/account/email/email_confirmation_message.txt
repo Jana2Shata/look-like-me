@@ -1,0 +1,18 @@
+Hi {{ user.name }},
+
+Welcome to Look Like Me community!
+
+We're thrilled to have you on board. Before you can start exploring and connecting, we need to verify your email address.
+
+Confirm your email by visiting the link below:
+
+{{ activate_url }}
+
+This link will expire in 1 day. If you did not create an account with Look Like Me, you can safely ignore this email.
+
+---
+
+Questions? We're always here at likemel595@gmail.com
+
+Look Like Me — Find your people.
+https://looklikeme.com
