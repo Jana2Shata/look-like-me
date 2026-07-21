@@ -35,21 +35,22 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
-    'nmxsk-93-112-205-73.free.pinggy.net',
+    'onshore-quotable-antelope.ngrok-free.dev',
     ]
 
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1',
-    'https://nmxsk-93-112-205-73.free.pinggy.net',
+    'https://onshore-quotable-antelope.ngrok-free.dev',
 ]
 
 
 CORS_ALLOWED_ORIGINS =[
     'http://127.0.0.1',
+    'https://onshore-quotable-antelope.ngrok-free.dev'
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://\w+\.pinggy\.net$",
+    r"^https://.+\.ngrok-free\.dev$",
 ]
 
 # Application definition
@@ -67,6 +68,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites',
 
+    # Pstgres DB (specifically pgvector extension)
+    'django.contrib.postgres',
+
     # APIs (DRF)
     'django_extensions',
     'rest_framework',
@@ -80,6 +84,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
+    'allauth.headless',
     'dj_rest_auth',
     'dj_rest_auth.registration',
     # 'rest_framework_simplejwt',
@@ -210,6 +215,11 @@ STATIC_URL = 'static/'
 
 # django.contrib.sites
 SITE_ID = 1 # what is this for? needed for allauth, which is needed for registration and email confirmation
+FRONTEND_URL = 'https://igloo-uproot-palace.ngrok-free.dev'
+# settings.py
+# HEADLESS_FRONTEND_URLS = {
+#     "account_reset_password_from_key": FRONTEND_URL +"reset-password/{uid}/{token}",
+# }
 
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
@@ -260,6 +270,8 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
 # dj-rest-auth
 REST_AUTH = {
+    # "PASSWORD_RESET_USE_SITES_DOMAIN": True, # to use frontend's domain in email-sent links, hopefully T^T
+
     "REGISTER_SERIALIZER": "auths.serializers.CustomRegisterSerializer",
     "USER_DETAILS_SERIALIZER":"auths.serializers.CustomUserDetailsSerializer",
     'LOGIN_SERIALIZER': 'dj_rest_auth.serializers.LoginSerializer',

@@ -22,7 +22,7 @@ services:
 
   db:
     restart: always
-    image: postgres:16
+    image: pgvector/pgvector:pg17 # more recent image of postgres that supports pgvector extension
     container_name: look-like-me-postgres #you can change this
     environment:
       - POSTGRES_USER=backend_dev
