@@ -216,10 +216,11 @@ STATIC_URL = 'static/'
 # django.contrib.sites
 SITE_ID = 1 # what is this for? needed for allauth, which is needed for registration and email confirmation
 FRONTEND_URL = 'https://igloo-uproot-palace.ngrok-free.dev'
-# settings.py
-# HEADLESS_FRONTEND_URLS = {
-#     "account_reset_password_from_key": FRONTEND_URL +"reset-password/{uid}/{token}",
-# }
+
+HEADLESS_FRONTEND_URLS = {
+    "account_reset_password_from_key": FRONTEND_URL +"/reset-password/{uid}/{token}",
+    "login": FRONTEND_URL #+ "/login",
+}
 
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
@@ -254,7 +255,7 @@ REST_FRAMEWORK = {
 # ALLAUTH SETTINGS
 ACCOUNT_EMAIL_VERIFICATION = "mandatory" # Require email confirmation
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1 # Confirmation link expires in 1 day
-LOGIN_URL = "/auths/login/"  # Path users will be redirected to after email verification
+LOGIN_URL = HEADLESS_FRONTEND_URLS['login'] #"/auths/login/"  # Path users will be redirected to after email verification
 ACCOUNT_EMAIL_SUBJECT_PREFIX = None
 
 ACCOUNT_ADAPTER = "auths.adapters.CustomAllauthAccountAdapter"
@@ -283,6 +284,7 @@ REST_AUTH = {
         # LOGOUT_ON_PASSWORD_CHANGE - set to False if you want to keep the current user logged in after a password change
     'PASSWORD_RESET_CONFIRM_SERIALIZER': 'auths.serializers.ValidationPasswordResetConfirmSerializer',
     'PASSWORD_CHANGE_SERIALIZER' : 'auths.serializers.ValidationPasswordChangeSerializer',
+    'PASSWORD_RESET_SERIALIZER' : 'auths.serializers.CustomPasswordResetSerializer',
 }
 
 
