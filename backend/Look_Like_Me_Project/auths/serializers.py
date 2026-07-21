@@ -137,6 +137,7 @@ class ValidationPasswordChangeSerializer(PasswordChangeSerializer):
         return get_adapter().clean_password(password)
     
 
+# SOURCE: traversing dj-rest-auth source codes with claude's help
 def frontend_password_reset_url_generator(request, user, temp_key):
         uid = user_pk_to_url_str(user)
         return settings.HEADLESS_FRONTEND_URLS["account_reset_password_from_key"].format(uid=uid, token=temp_key)

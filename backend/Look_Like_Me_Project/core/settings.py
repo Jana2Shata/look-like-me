@@ -222,6 +222,15 @@ HEADLESS_FRONTEND_URLS = {
     "login": FRONTEND_URL #+ "/login",
 }
 
+
+AI_URL = "https://mandarin-chastise-semester.ngrok-free.dev"
+
+HEADLESS_AI_URLS = {
+    'validate_face' : AI_URL + "/validate-face",
+    'embed' : AI_URL + "/embed",
+    'set_profile_photo' : AI_URL + "/set-profile-photo",
+}
+
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
     # or allow read-only access for unauthenticated users.
