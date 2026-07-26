@@ -6,6 +6,5 @@ from .views import (
 )
 
 urlpatterns = [
-    # path('validate-face/', ValidateFaceView.as_view(), name='validate_face'),
     path('embed-face/', EmbedFaceView.as_view(), name='embed_face'),
 ]
