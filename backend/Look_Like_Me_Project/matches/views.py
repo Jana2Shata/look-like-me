@@ -18,25 +18,6 @@ from .services import (
 class EmbedFaceView(APIView):
     permission_classes = [permissions.IsAuthenticated] 
 
-    # async def __embed(self, image_instance, payload, success_status_code):
-    #     """
-    #     Handles the AI call and database update.
-    #     Returns a standardized dictionary ready for the HTTP Response.
-    #     """
-        
-    #     # Await the async service call
-    #     val_result = await async_embed_face(payload)
-        
-    #     if not val_result["success"] or not val_result["data"].get("embedding"):
-    #         # return {"detail": val_result["detail"], "status": val_result["status_code"]}
-    #         return val_result
-            
-    #     image_instance.embedding = val_result["data"].get("embedding")
-    #     await image_instance.asave()
-    #     val_result["status_code"] = success_status_code
-
-    #     return val_result # TODO: doesn't support translation yet
-    
 
     def _build_response(self, result_dict):
         """Helper to ensure consistent frontend responses."""
@@ -46,50 +27,6 @@ class EmbedFaceView(APIView):
             "reason": result_dict["reason"]
         }, status=result_dict["status_code"])
 
-
-    # # Change 'def' to 'async def'
-    # async def post(self, request):
-
-    #     ser = ImageSerializer(data=request.data)
-    #     # Notice the syntax: sync_to_async(function)(arguments)
-    #     await sync_to_async(ser.is_valid)(raise_exception=True)  # Validate the incoming data
-        
-    #     image_instance = ser.validated_data['image']
-
-    #     try:
-    #         # Saving the serializer to get the actual database Model instance I MUST NOT
-    #         image_instance = await sync_to_async(ser.save)(user=request.user)
-
-
-    #     except IntegrityError:
-    #         return self._build_response({
-    #             "success": False,
-    #             "detail": "User already has an associated image.",
-    #             "reason": "conflict",
-    #             "status_code": status.HTTP_409_CONFLICT
-    #         })
-        
-    #     except Exception as err:
-    #         return self._build_response({
-    #             "success": False,
-    #             "detail": f"{err}",
-    #             "reason": "unknown_error",
-    #             "status_code": status.HTTP_409_CONFLICT
-    #         })
-        
-        
-
-    #     payload = await sync_to_async(get_image_payload)(image_instance)
-       
-    #     result = await self.__embed(image_instance, payload=payload)
-
-        
-    #     if not result["success"]:
-    #         return self._build_response(result)
-        
-    #     return self._build_response(result)
-        
-    
 
 
 
@@ -180,56 +117,3 @@ class EmbedFaceView(APIView):
         else:
             return self._build_response(val_result)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # async def put(self, request):
-
-    #      # 1. Wrap the lazy evaluation and DB query in a sync function
-    #     def get_user_image():
-    #         # This will synchronously resolve request.user and fetch the first image
-    #         return request.user.images # A user has only one image
-            
-
-    #     try:
-    #     # 2. Await the sync function
-    #         image_instance = await sync_to_async(get_user_image)()
-
-    #     except Exception as e:
-
-    #         return Response(
-    #             {"detail": "No user image found."},
-    #             status=status.HTTP_404_NOT_FOUND
-    #         )
-        
-    #     ser = ImageSerializer(image_instance, data=request.data, partial=True)
-        
-    #     # Validate
-    #     await sync_to_async(ser.is_valid)(raise_exception=True)
-
-    #     # Save the serializer FIRST to update the image on disk/database
-    #     # (This handles file uploads/replacements via the serializer)
-    #     image_instance = await sync_to_async(ser.save)()
-
-    #     payload = get_image_payload(image_instance)
-
-    #     result = await self.__embed(image_instance, payload=payload)
-
-    #     # # 3. If helper returned an error Response, pass it through directly!
-    #     # if isinstance(result, Response):
-    #     #     return result
-        
-    #     return Response({
-    #         "detail": result.get("detail"),
-    #     }, result.get("status", status=status.HTTP_200_OK))
-        

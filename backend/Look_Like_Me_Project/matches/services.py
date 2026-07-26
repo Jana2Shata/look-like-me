@@ -6,48 +6,17 @@ from rest_framework import status
 from django.conf import settings
 import mimetypes
 
-# 1. Defensively remove these if they exist in your Windows environment.
+# Defensively remove these if they exist in your Windows environment.
 # (Programs like PostgreSQL or old VPNs often set these to paths that don't exist, 
 # which causes ssl.py to crash with a FileNotFoundError).
 os.environ.pop('SSL_CERT_FILE', None)
 os.environ.pop('SSL_CERT_DIR', None)
-
-# async def async_validate_face(payload):
-#     ai_url = settings.HEADLESS_AI_URLS['validate_face']
-    
-#     # Using an async context manager ensures connections are closed properly
-#     async with httpx.AsyncClient(verify=certifi.where()) as client:
-
-#         # Construct the file tuple httpx expects: (filename, content, content_type)
-#         file = {
-#             'profile_photo': (payload['file_name'], payload['file_content'], payload['content_type'])
-#         }
-
-#         try:
-#             # Note the 'await' keyword here
-#             response = await client.post(url=ai_url, files=file, timeout=15.0)
-#             response.raise_for_status()
-            
-#             if response.json().get("accepted"):
-#                 return {"success": True, "data": response.json(), "status_code": status.HTTP_200_OK}
-            
-#             return {"success": False, "error": response.json().get("message"), "status_code": status.HTTP_400_BAD_REQUEST}
-            
-#         except httpx.TimeoutException:
-#             return {"success": False, "error": "AI service timed out.", "status_code": status.HTTP_408_REQUEST_TIMEOUT}
-
-#         except Exception as err:
-#             return {"success": False, "error": str(err), "status_code": status.HTTP_400_BAD_REQUEST}
-        
 
 
 
 
 async def async_embed_face(payload):
     ai_url = settings.HEADLESS_AI_URLS['embed']
-
-    # print(f"{type(payload)}")
-    # print(f"{payload}")
     
     # Using an async context manager ensures connections are closed properly
     async with httpx.AsyncClient(verify=certifi.where()) as client:
@@ -58,14 +27,13 @@ async def async_embed_face(payload):
 
         try:
             # Note the 'await' keyword here
-            # response = await client.post(url=ai_url, files=file, timeout=15.0)
             response = await client.post(url=ai_url, files=file, timeout=15.0)
 
             response.raise_for_status()
             data = response.json()
             
             if data.get("accepted"):
-                # return {"success": True, "data": response.json(), "status_code": status.HTTP_200_OK}
+
                 return {
                     "success": True,
                     "detail": data.get("details"),
