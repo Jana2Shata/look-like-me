@@ -35,21 +35,22 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     '127.0.0.1',
-    'nmxsk-93-112-205-73.free.pinggy.net',
+    'onshore-quotable-antelope.ngrok-free.dev',
     ]
 
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1',
-    'https://nmxsk-93-112-205-73.free.pinggy.net',
+    'https://onshore-quotable-antelope.ngrok-free.dev',
 ]
 
 
 CORS_ALLOWED_ORIGINS =[
     'http://127.0.0.1',
+    'https://onshore-quotable-antelope.ngrok-free.dev'
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://\w+\.pinggy\.net$",
+    r"^https://.+\.ngrok-free\.dev$",
 ]
 
 # Application definition
@@ -67,6 +68,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites',
 
+    # Pstgres DB (specifically pgvector extension)
+    'django.contrib.postgres',
+
     # APIs (DRF)
     'django_extensions',
     'rest_framework',
@@ -80,6 +84,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
+    'allauth.headless',
     'dj_rest_auth',
     'dj_rest_auth.registration',
     # 'rest_framework_simplejwt',
@@ -210,6 +215,21 @@ STATIC_URL = 'static/'
 
 # django.contrib.sites
 SITE_ID = 1 # what is this for? needed for allauth, which is needed for registration and email confirmation
+FRONTEND_URL = 'https://igloo-uproot-palace.ngrok-free.dev'
+
+HEADLESS_FRONTEND_URLS = {
+    "account_reset_password_from_key": FRONTEND_URL +"/reset-password/{uid}/{token}",
+    "login": FRONTEND_URL #+ "/login",
+}
+
+
+AI_URL = "https://mandarin-chastise-semester.ngrok-free.dev"
+
+HEADLESS_AI_URLS = {
+    'validate_face' : AI_URL + "/validate-face",
+    'embed' : AI_URL + "/embed",
+    'set_profile_photo' : AI_URL + "/set-profile-photo",
+}
 
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
@@ -244,7 +264,7 @@ REST_FRAMEWORK = {
 # ALLAUTH SETTINGS
 ACCOUNT_EMAIL_VERIFICATION = "mandatory" # Require email confirmation
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1 # Confirmation link expires in 1 day
-LOGIN_URL = "/auths/login/"  # Path users will be redirected to after email verification
+LOGIN_URL = HEADLESS_FRONTEND_URLS['login'] #"/auths/login/"  # Path users will be redirected to after email verification
 ACCOUNT_EMAIL_SUBJECT_PREFIX = None
 
 ACCOUNT_ADAPTER = "auths.adapters.CustomAllauthAccountAdapter"
@@ -260,6 +280,8 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
 # dj-rest-auth
 REST_AUTH = {
+    # "PASSWORD_RESET_USE_SITES_DOMAIN": True, # to use frontend's domain in email-sent links, hopefully T^T
+
     "REGISTER_SERIALIZER": "auths.serializers.CustomRegisterSerializer",
     "USER_DETAILS_SERIALIZER":"auths.serializers.CustomUserDetailsSerializer",
     'LOGIN_SERIALIZER': 'dj_rest_auth.serializers.LoginSerializer',
@@ -271,6 +293,7 @@ REST_AUTH = {
         # LOGOUT_ON_PASSWORD_CHANGE - set to False if you want to keep the current user logged in after a password change
     'PASSWORD_RESET_CONFIRM_SERIALIZER': 'auths.serializers.ValidationPasswordResetConfirmSerializer',
     'PASSWORD_CHANGE_SERIALIZER' : 'auths.serializers.ValidationPasswordChangeSerializer',
+    'PASSWORD_RESET_SERIALIZER' : 'auths.serializers.CustomPasswordResetSerializer',
 }
 
 

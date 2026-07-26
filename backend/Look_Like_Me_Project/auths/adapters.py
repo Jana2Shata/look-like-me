@@ -14,6 +14,9 @@ class CustomAllauthAccountAdapter(DefaultAccountAdapter):
         # Return your custom format: "Site Name - Subject"
         return f"{site.name} - {subject}"
 
+    def get_reset_password_from_key_url(self, key: str) -> str:
+        return settings.HEADLESS_FRONTEND_URLS["account_reset_password_from_key"]
+    # .format(uid=self.request.GET.get("uid"), token=key)
 
 
     # def send_confirmation_mail(self, request, emailconfirmation, signup):

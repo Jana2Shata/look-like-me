@@ -1,14 +1,16 @@
 from dj_rest_auth.registration.serializers import RegisterSerializer, _signup_field_required
 from dj_rest_auth.serializers import (
     UserDetailsSerializer, PasswordResetConfirmSerializer,
-    PasswordChangeSerializer,
+    PasswordResetSerializer, PasswordChangeSerializer,
     )
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from allauth.account.adapter import get_adapter
+from allauth.account.utils import user_pk_to_url_str
 
 from .models import User
 from .validators import validate_password
+from django.conf import settings
 class CustomRegisterSerializer(RegisterSerializer):
     "inherit FROM https://github.com/iMerica/dj-rest-auth/blob/master/dj_rest_auth/registration/serializers.py#L233"
     
@@ -133,3 +135,16 @@ class ValidationPasswordChangeSerializer(PasswordChangeSerializer):
         password = attrs.get('new_password1', '')
         password = validate_password(password)
         return get_adapter().clean_password(password)
+    
+
+# SOURCE: traversing dj-rest-auth source codes with claude's help
+def frontend_password_reset_url_generator(request, user, temp_key):
+        uid = user_pk_to_url_str(user)
+        return settings.HEADLESS_FRONTEND_URLS["account_reset_password_from_key"].format(uid=uid, token=temp_key)
+
+class CustomPasswordResetSerializer(PasswordResetSerializer):
+
+    def get_email_options(self):
+        return {
+            "url_generator": frontend_password_reset_url_generator,
+        }
