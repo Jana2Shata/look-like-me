@@ -12,32 +12,32 @@ import mimetypes
 os.environ.pop('SSL_CERT_FILE', None)
 os.environ.pop('SSL_CERT_DIR', None)
 
-async def async_validate_face(payload):
-    ai_url = settings.HEADLESS_AI_URLS['validate_face']
+# async def async_validate_face(payload):
+#     ai_url = settings.HEADLESS_AI_URLS['validate_face']
     
-    # Using an async context manager ensures connections are closed properly
-    async with httpx.AsyncClient(verify=certifi.where()) as client:
+#     # Using an async context manager ensures connections are closed properly
+#     async with httpx.AsyncClient(verify=certifi.where()) as client:
 
-        # Construct the file tuple httpx expects: (filename, content, content_type)
-        file = {
-            'profile_photo': (payload['file_name'], payload['file_content'], payload['content_type'])
-        }
+#         # Construct the file tuple httpx expects: (filename, content, content_type)
+#         file = {
+#             'profile_photo': (payload['file_name'], payload['file_content'], payload['content_type'])
+#         }
 
-        try:
-            # Note the 'await' keyword here
-            response = await client.post(url=ai_url, files=file, timeout=15.0)
-            response.raise_for_status()
+#         try:
+#             # Note the 'await' keyword here
+#             response = await client.post(url=ai_url, files=file, timeout=15.0)
+#             response.raise_for_status()
             
-            if response.json().get("accepted"):
-                return {"success": True, "data": response.json(), "status_code": status.HTTP_200_OK}
+#             if response.json().get("accepted"):
+#                 return {"success": True, "data": response.json(), "status_code": status.HTTP_200_OK}
             
-            return {"success": False, "error": response.json().get("message"), "status_code": status.HTTP_400_BAD_REQUEST}
+#             return {"success": False, "error": response.json().get("message"), "status_code": status.HTTP_400_BAD_REQUEST}
             
-        except httpx.TimeoutException:
-            return {"success": False, "error": "AI service timed out.", "status_code": status.HTTP_408_REQUEST_TIMEOUT}
+#         except httpx.TimeoutException:
+#             return {"success": False, "error": "AI service timed out.", "status_code": status.HTTP_408_REQUEST_TIMEOUT}
 
-        except Exception as err:
-            return {"success": False, "error": str(err), "status_code": status.HTTP_400_BAD_REQUEST}
+#         except Exception as err:
+#             return {"success": False, "error": str(err), "status_code": status.HTTP_400_BAD_REQUEST}
         
 
 
@@ -50,25 +50,54 @@ async def async_embed_face(payload):
     async with httpx.AsyncClient(verify=certifi.where()) as client:
 
         # Construct the file tuple httpx expects: (filename, content, content_type)
-        file = {
-            'profile_photo': (payload['file_name'], payload['file_content'], payload['content_type'])
-        }
+        # file = {
+        #     'profile_photo': (payload['file_name'], payload['file_content'], payload['content_type'])
+        # }
 
         try:
             # Note the 'await' keyword here
-            response = await client.post(url=ai_url, files=file, timeout=15.0)
+            # response = await client.post(url=ai_url, files=file, timeout=15.0)
+            response = await client.post(url=ai_url, files=payload, timeout=15.0)
+
             response.raise_for_status()
+            data = response.json()
             
             if response.json().get("accepted"):
-                return {"success": True, "data": response.json(), "status_code": status.HTTP_200_OK}
+                # return {"success": True, "data": response.json(), "status_code": status.HTTP_200_OK}
+                return {
+                    "success": True,
+                    "detail": data.get("details"),
+                    "reason": None,
+                    "embedding": data.get("embedding"),
+                    "status_code": status.HTTP_200_OK
+                }
             
-            return {"success": False, "error": response.json().get("message"), "status_code": status.HTTP_400_BAD_REQUEST}
+            # return {"success": False, "detail": response.json().get("details"), "reason": response.json().get("reason"),
+            #         "status_code": status.HTTP_400_BAD_REQUEST}
+
+            # AI processed it but rejected the image (e.g., no face found, blurry)
+            return {
+                "success": False,
+                "detail": data.get("details"),
+                "reason": data.get("reason"),
+                "embedding": None,
+                "status_code": status.HTTP_400_BAD_REQUEST
+            }
             
         except httpx.TimeoutException:
-            return {"success": False, "error": "AI service timed out.", "status_code": status.HTTP_408_REQUEST_TIMEOUT}
-
+            return {
+                "success": False, 
+                "detail": "AI service timed out while analyzing the image.", 
+                "reason": "timeout",
+                "status_code": status.HTTP_408_REQUEST_TIMEOUT
+            }
         except Exception as err:
-            return {"success": False, "error": str(err), "status_code": status.HTTP_400_BAD_REQUEST}
+            return {
+                "success": False, 
+                "detail": "AI service is currently unavailable.", 
+                "reason": "service_unavailable",
+                "status_code": status.HTTP_503_SERVICE_UNAVAILABLE
+            }
         
 
 

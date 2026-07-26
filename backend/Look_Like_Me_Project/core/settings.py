@@ -226,9 +226,7 @@ HEADLESS_FRONTEND_URLS = {
 AI_URL = "https://mandarin-chastise-semester.ngrok-free.dev"
 
 HEADLESS_AI_URLS = {
-    'validate_face' : AI_URL + "/validate-face",
     'embed' : AI_URL + "/embed",
-    'set_profile_photo' : AI_URL + "/set-profile-photo",
 }
 
 REST_FRAMEWORK = {
