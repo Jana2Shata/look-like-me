@@ -6,3 +6,4 @@ __pycache__/
 *.pyo
 public.key
 private.key
+test_images/

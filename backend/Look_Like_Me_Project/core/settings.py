@@ -98,6 +98,9 @@ INSTALLED_APPS = [
     'relations',
     'chats',
     'preferences',
+
+    # dummy seeding
+    'django_seeding',
 ]
 
 AUTH_USER_MODEL = 'auths.User' # replaces the default User model with our custom one
