@@ -1,4 +1,3 @@
-# myapp/services.py
 import os
 import certifi
 import httpx

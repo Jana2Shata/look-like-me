@@ -1,3 +1,6 @@
+
+# SOURCE: https://pypi.org/project/django-seeding/#user-content-seeder
+
 from django_seeding import seeders
 from django_seeding.seeder_registry import SeederRegistry 
 
@@ -14,8 +17,6 @@ images_path = "../test_images/"
 
 images_names = os.listdir(images_path)
 
-# async def wrap_async(payload):
-#     return await async_embed_face(payload=payload)
 
 @SeederRegistry.register
 class DummyUserSeeder(seeders.Seeder):
@@ -66,17 +67,8 @@ class DummyUserSeeder(seeders.Seeder):
 
 
 
-#         post1 = Post.objects.create(content='post1')
-#         post2 = Post.objects.create(content='post1')
-
-#         comment1 = Comment.objects.create(post=post1, content='comment1')
-#         comment2 = Comment.objects.create(post=post1, content='comment2')
-#         comment3 = Comment.objects.create(post=post2, content='comment3')
-#         comment4 = Comment.objects.create(post=post2, content='comment4')
 
 
-
-# myapp/services.py
 import os
 import certifi
 import httpx
