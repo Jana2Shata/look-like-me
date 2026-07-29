@@ -6,3 +6,5 @@ __pycache__/
 *.pyo
 public.key
 private.key
+test_images/
+Look_Like_Me_Project/media/
