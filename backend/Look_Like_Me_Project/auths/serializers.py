@@ -11,6 +11,7 @@ from allauth.account.utils import user_pk_to_url_str
 from .models import User
 from .validators import validate_password
 from django.conf import settings
+
 class CustomRegisterSerializer(RegisterSerializer):
     "inherit FROM https://github.com/iMerica/dj-rest-auth/blob/master/dj_rest_auth/registration/serializers.py#L233"
     
@@ -115,7 +116,18 @@ class UserProfileSerializer(serializers.HyperlinkedModelSerializer):
             'name': {'required': False}, # name is required
         }
         
+class PublicUserProfileSerializer(serializers.ModelSerializer):
 
+    # Creates a clickable link pointing to the user's detail view
+    url = serializers.HyperlinkedIdentityField(
+        view_name='user-detail',  # Required
+        lookup_field='uid' # Default is pk
+    )
+
+    class Meta:
+        model = User
+        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio']
+        read_only = fields
 
 
 class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):

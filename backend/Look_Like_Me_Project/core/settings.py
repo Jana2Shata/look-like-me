@@ -33,9 +33,13 @@ SECRET_KEY = 'django-insecure-@5xtrpsf3fkbrv$%jkf3%7#(p(@iy=sg6mx!fzpn3&tg7n*2-^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'onshore-quotable-antelope.ngrok-free.dev',
+    'testserver', 
     ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -218,6 +222,10 @@ STATIC_URL = 'static/'
 
 # django.contrib.sites
 SITE_ID = 1 # what is this for? needed for allauth, which is needed for registration and email confirmation
+
+# Controls the communication between django and ngrok (the temp dev server) to utilize https back and forth
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 FRONTEND_URL = 'https://igloo-uproot-palace.ngrok-free.dev'
 
 HEADLESS_FRONTEND_URLS = {

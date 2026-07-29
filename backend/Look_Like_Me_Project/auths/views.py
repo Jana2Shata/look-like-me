@@ -21,7 +21,10 @@ from django.contrib.auth.backends import ModelBackend
 
 # local apps import
 from .models import User
-from .serializers import CustomUserDetailsSerializer, UserProfileSerializer
+from .serializers import (
+    CustomUserDetailsSerializer, 
+    UserProfileSerializer,
+    PublicUserProfileSerializer,)
 from globals.mixins import KnoxTokenOnlyMixin
         
 
@@ -107,3 +110,10 @@ class ManageUserView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         """Retrieve and return authenticated user"""
         return self.request.user
+
+
+class PublicUserDetailView(generics.RetrieveAPIView):
+    queryset = User.objects.all()
+    serializer_class = PublicUserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field='uid'

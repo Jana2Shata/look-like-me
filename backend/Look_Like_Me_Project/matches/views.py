@@ -1,17 +1,20 @@
-from django.shortcuts import render
-import os
-import mimetypes
 from asgiref.sync import sync_to_async
 from adrf.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 from django.db import IntegrityError
-from .serializers import ImageSerializer
-from rest_framework import permissions
+from pgvector.django import CosineDistance
+import time
+
+from .serializers import (
+    ImageSerializer,
+    MatchesFeedSerializer,
+    )
 from .services import (
     async_embed_face,
-    get_image_payload
     )
+from .models import Image
+from auths.models import User
 
 
 
@@ -117,3 +120,105 @@ class EmbedFaceView(APIView):
         else:
             return self._build_response(val_result)
 
+
+
+class MatchesFeed(APIView):
+    permission_classes = [permissions.IsAuthenticated] 
+    # similarity_threshold = 0.4
+    similarity_threshold = 0.8
+    top_k = 5
+
+    def get(self, request):
+
+        user = request.user
+
+        try:
+            _ = user.images
+        except Image.DoesNotExist:
+            return Response(
+                {"detail": "User has no associated image."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        start_time = time.perf_counter()
+
+        images_distances = Image.objects.select_related('user' # efficiently fetch user oand its related objects
+            ).annotate(
+                distance=CosineDistance('embedding', user.images.embedding)
+                    ).filter(distance__lt=self.similarity_threshold).order_by('distance'
+                        ).exclude(user=user)[:self.top_k]  # Exclude the current user's image and limit to top 5 matches
+
+        end_time = time.perf_counter()
+
+        if len(images_distances) < 1:
+            return Response(
+                {'detail': f'No matches found at threshold {1-self.similarity_threshold}'},
+                status=status.HTTP_200_OK
+            )
+
+        # serialize the matched images
+        serializer = MatchesFeedSerializer(images_distances, many=True, context={'request': request})
+
+        return Response(
+            {'detail': 'Matches found and retrieved successfully.',
+             'Search_time': f'{(end_time-start_time):.6f} seconds',
+             'data': serializer.data},
+             status=status.HTTP_200_OK
+        )
+
+
+
+
+class TempMatchesFeed(APIView):
+    permission_classes = [] 
+    similarity_threshold = 0.4
+    top_k = 5
+
+    def get(self, request, id):
+
+        try:
+            user = User.objects.get(id=id)
+
+        except:
+            return Response(
+                {"detail": "No user with this id."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            _ = user.images
+        except Image.DoesNotExist:
+            return Response(
+                {"detail": "User has no associated image.",
+                 'Search_time': None,
+                 'data': None},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        start_time = time.perf_counter()
+
+        images_distances = Image.objects.select_related('user' # efficiently fetch user oand its related objects
+            ).annotate(
+                distance=CosineDistance('embedding', user.images.embedding)
+                    ).filter(distance__lt=self.similarity_threshold).order_by('distance'
+                        ).exclude(user=user)[:self.top_k]  # Exclude the current user's image and limit to top 5 matches
+
+        end_time = time.perf_counter()
+
+        if len(images_distances) < 1:
+            return Response(
+                {'detail': f'For user {user}, no matches found at threshold {1-self.similarity_threshold}',
+                'Search_time': f'{(end_time-start_time):.6f} seconds',
+                'data': None},
+                status=status.HTTP_200_OK
+            )
+
+        # serialize the matched images
+        serializer = MatchesFeedSerializer(images_distances, many=True, context={'request': request})
+
+        return Response(
+            {'detail': 'Matches found and retrieved successfully.',
+             'Search_time': f'{(end_time-start_time):.6f} seconds',
+             'data': serializer.data},
+             status=status.HTTP_200_OK
+        )

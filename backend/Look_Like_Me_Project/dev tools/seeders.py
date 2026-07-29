@@ -6,7 +6,6 @@ from django_seeding.seeder_registry import SeederRegistry
 
 from auths.models import User
 from matches.models import Image
-from matches.services import async_embed_face
 
 import os
 import mimetypes
@@ -57,12 +56,14 @@ class DummyUserSeeder(seeders.Seeder):
                     # create associated image instance
                     image = Image.objects.create(
                         user=user,
-                        image=File(img_file, name=base_name),
+                        image=File(img_file, name=image_name),
                         embedding=response.get("embedding")
                     )
 
                 else:
                     print(f"Failed to embed image for {base_name}: {response.get('detail')}")
+
+                # break
 
 
 
