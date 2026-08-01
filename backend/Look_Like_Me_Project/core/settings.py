@@ -240,6 +240,11 @@ HEADLESS_AI_URLS = {
     'embed' : AI_URL + "/embed",
 }
 
+AI_HYBER_PARAMS = {
+    'COSINE_SIM_THRESHOLD' : 0.6,
+    'TOP_K' : 5,
+}
+
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
     # or allow read-only access for unauthenticated users.
