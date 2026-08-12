@@ -126,8 +126,8 @@ class EmbedFaceView(APIView):
 class MatchesFeed(APIView):
     permission_classes = [permissions.IsAuthenticated] 
 
-    similarity_threshold = 1- settings.AI_HYBER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
-    top_k = settings.AI_HYBER_PARAMS['TOP_K']
+    similarity_threshold = 1- settings.AI_HYPER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
+    top_k = settings.AI_HYPER_PARAMS['TOP_K']
 
     def get(self, request):
 
@@ -177,8 +177,8 @@ class MatchesFeed(APIView):
 class TempMatchesFeed(APIView):
     permission_classes = [] 
 
-    similarity_threshold = 1- settings.AI_HYBER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
-    top_k = settings.AI_HYBER_PARAMS['TOP_K']
+    similarity_threshold = 1- settings.AI_HYPER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
+    top_k = settings.AI_HYPER_PARAMS['TOP_K']
 
     def get(self, request, id):
 
