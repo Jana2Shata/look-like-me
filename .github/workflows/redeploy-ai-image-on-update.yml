@@ -1,0 +1,19 @@
+on:
+  repository_dispatch:
+    types: [ai-image-updated]
+
+jobs:
+  redeploy:
+    runs-on: self-hosted
+    steps:
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.AI_SERVICE_DOCKERHUB_USERNAME  }}
+          password: ${{ secrets.AI_SERVICE_DOCKERHUB_TOKEN }}
+
+      - name: Pull and restart AI service
+        run: |
+          cd "C:\Users\mokar\VS_PROJECTS\look-like-me\backend\Look_Like_Me_Project\docker configs"
+          docker compose pull ai-service
+          docker compose up -d ai-service
