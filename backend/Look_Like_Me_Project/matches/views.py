@@ -32,6 +32,12 @@ class EmbedFaceView(APIView):
         }, status=result_dict["status_code"])
 
 
+    def _get_user_image(self, request):
+                "Helper to wrap the lazy evaluation and DB query in a sync function"
+                # synchronously resolve request.user and fetch the first image
+                return request.user.images # A user has only one image
+
+
 
 
     # Change 'def' to 'async def'
@@ -78,24 +84,14 @@ class EmbedFaceView(APIView):
 
 
 
-    async def put(self, request):
-
-         # 1. Wrap the lazy evaluation and DB query in a sync function
-        def get_user_image():
-            # This will synchronously resolve request.user and fetch the first image
-            return request.user.images # A user has only one image
-            
+    async def put(self, request):          
 
         try:
-        # 2. Await the sync function
-            image_instance = await sync_to_async(get_user_image)()
+        # Awaiting the sync function
+            image_instance = await sync_to_async(self._get_user_image)(request)
 
         except Exception as e:
 
-            # return Response(
-            #     {"detail": "No user image found."},
-            #     status=status.HTTP_404_NOT_FOUND
-            # )
             return self._build_response({
                 "success": False,
                 "detail": "No user image found.",
@@ -120,6 +116,47 @@ class EmbedFaceView(APIView):
 
         else:
             return self._build_response(val_result)
+
+
+
+    async def get(self, request):
+
+        try:
+            image_instance = await sync_to_async(self._get_user_image)(request)
+
+        except Exception as e:
+            return Response({
+                "detail": "User has no associated image.",
+                "data": None,
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+        serializer = ImageSerializer(image_instance, context={'request': request})
+
+        return Response({
+            "detail": "User image retrieved successfully.",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+
+    async def delete(self, request):
+
+        try:
+            image_instance = await sync_to_async(self._get_user_image)(request)
+
+        except Exception as e:
+            return Response({
+                "detail": "User has no associated image.",
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        await image_instance.adelete()
+
+        return Response({
+            "detail": "User image deleted successfully.",
+        }, status=status.HTTP_200_OK)
+
+    
 
 
 
