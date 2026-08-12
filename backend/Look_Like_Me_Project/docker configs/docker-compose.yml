@@ -10,20 +10,19 @@ services:
 #     ports:
 #       - 8000:8000
 #     depends_on:
-#       - db
+#       - [db, ai-service]
+#     environment:
+#       - AI_SERVICE_URL=http://ai-service:8000
+#     networks: [look-like-me-network]
+
+    # SEE SOURCE: https://docs.docker.com/compose/gettingstarted/#step-4-enable-compose-watch-for-live-updates
 
 
-  # db:
-  #   image: postgres:14
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data/
-  #   environment:
-  #     - "POSTGRES_HOST_AUTH_METHOD=trust"
 
   db:
     restart: always
     image: pgvector/pgvector:pg17 # more recent image of postgres that supports pgvector extension
-    container_name: look-like-me-postgres #you can change this
+    container_name: look-like-me-postgres 
     environment:
       - POSTGRES_USER=backend_dev
       - POSTGRES_PASSWORD=RvNt5Yjzhg08Ha7o
@@ -34,6 +33,18 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # - postgres_data:/var/lib/postgresql
+    networks: [look-like-me-network]
+
+  ai-service:
+    image: fatimahalzh/look-like-me-ai:latest
+    ports:
+      - "8001:8000"     # must publish a port — Django outside Docker can't see internal service names
+                        # but when django is dockerized, remove this line and use the internal service name (ai-service) instead of localhost
+    networks: [look-like-me-network]
+
+networks:
+  look-like-me-network:
+    driver: bridge
 
   # pgadmin:
   #     image: dpage/pgadmin4

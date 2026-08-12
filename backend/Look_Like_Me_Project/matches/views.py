@@ -5,6 +5,7 @@ from rest_framework import status, permissions
 from django.db import IntegrityError
 from pgvector.django import CosineDistance
 import time
+from django.conf import settings
 
 from .serializers import (
     ImageSerializer,
@@ -67,7 +68,7 @@ class EmbedFaceView(APIView):
                     "success": False,
                     "detail": f"{err}",
                     "reason": "unknown_error",
-                    "status_code": status.HTTP_409_CONFLICT
+                    "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR
                 })
             
         else:
@@ -124,9 +125,9 @@ class EmbedFaceView(APIView):
 
 class MatchesFeed(APIView):
     permission_classes = [permissions.IsAuthenticated] 
-    # similarity_threshold = 0.4
-    similarity_threshold = 0.8
-    top_k = 5
+
+    similarity_threshold = 1- settings.AI_HYPER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
+    top_k = settings.AI_HYPER_PARAMS['TOP_K']
 
     def get(self, request):
 
@@ -136,7 +137,9 @@ class MatchesFeed(APIView):
             _ = user.images
         except Image.DoesNotExist:
             return Response(
-                {"detail": "User has no associated image."},
+                {"detail": "User has no associated image.",
+                 'Search_time': None,
+                 'data': None},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -152,7 +155,9 @@ class MatchesFeed(APIView):
 
         if len(images_distances) < 1:
             return Response(
-                {'detail': f'No matches found at threshold {1-self.similarity_threshold}'},
+                {'detail': f'No matches found at threshold {1-self.similarity_threshold}',
+                 'Search_time': f'{(end_time-start_time):.6f} seconds',
+                 'data': None},
                 status=status.HTTP_200_OK
             )
 
@@ -171,8 +176,9 @@ class MatchesFeed(APIView):
 
 class TempMatchesFeed(APIView):
     permission_classes = [] 
-    similarity_threshold = 0.4
-    top_k = 5
+
+    similarity_threshold = 1- settings.AI_HYPER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
+    top_k = settings.AI_HYPER_PARAMS['TOP_K']
 
     def get(self, request, id):
 
