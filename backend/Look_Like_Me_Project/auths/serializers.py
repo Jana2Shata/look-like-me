@@ -124,10 +124,19 @@ class PublicUserProfileSerializer(serializers.ModelSerializer):
         lookup_field='uid' # Default is pk
     )
 
+    image = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio']
+        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'image']
         read_only = fields
+
+    def get_image(self, obj):
+        request = self.context.get('request')
+        # if # TODO: preferences check
+        #     return None
+        image = getattr(obj, 'images', None)
+        return request.build_absolute_uri(image.image.url) if image and image.image else None
 
 
 class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
