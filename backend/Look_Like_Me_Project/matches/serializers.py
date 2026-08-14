@@ -1,14 +1,20 @@
 
 from rest_framework import serializers
 from rest_framework.serializers import HyperlinkedModelSerializer, ModelSerializer
+from django.core.validators import FileExtensionValidator
+
 from .models import Image
 from auths.serializers import PublicUserProfileSerializer
 
 class ImageSerializer(HyperlinkedModelSerializer):
 
+    # facial_image = serializers.ImageField(
+    #     source='image',
+    #     validators=[FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp'])],
+    #     ) # redefining the field neglects the model's validators, so we re-add them here
     class Meta:
         model = Image
-        fields = (['image'])
+        fields = (['facial_image'])
 
 
 

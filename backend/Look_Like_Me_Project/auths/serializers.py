@@ -108,25 +108,25 @@ class CustomUserDetailsSerializer(UserDetailsSerializer): # Returned login respo
 
 class UserProfileSerializer(serializers.HyperlinkedModelSerializer):
 
-    image = serializers.SerializerMethodField()
+    facial_image = serializers.SerializerMethodField()
     # print
     class Meta:
         model = User
-        fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'image')
+        fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image')
 
         extra_kwargs = {
             'email': {'read_only': True}, 
             'uid': {'read_only': True}, 
-            'image': {'read_only': True}, 
+            'facial_image': {'read_only': True}, 
 
             'name': {'required': False}, 
         }
 
-    def get_image(self, obj):
+    def get_facial_image(self, obj):
         
         request = self.context.get('request')
-        image = getattr(obj, 'images', None)
-        return request.build_absolute_uri(image.image.url) if image and image.image else None
+        image = getattr(obj, 'image', None)
+        return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
 
         
 class PublicUserProfileSerializer(serializers.ModelSerializer):
@@ -137,20 +137,19 @@ class PublicUserProfileSerializer(serializers.ModelSerializer):
         lookup_field='uid' # Default is pk
     )
 
-    image = serializers.SerializerMethodField()
+    facial_image = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'image']
+        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image']
         read_only = fields
 
-    def get_image(self, obj):
+    def get_facial_image(self, obj):
         request = self.context.get('request')
         # if # TODO: preferences check
         #     return None
-        image = getattr(obj, 'images', None)
-        return request.build_absolute_uri(image.image.url) if image and image.image else None
-
+        image = getattr(obj, 'image', None)
+        return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
 
 class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
     
