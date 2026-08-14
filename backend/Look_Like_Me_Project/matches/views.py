@@ -35,7 +35,7 @@ class EmbedFaceView(APIView):
     def _get_user_image(self, request):
                 "Helper to wrap the lazy evaluation and DB query in a sync function"
                 # synchronously resolve request.user and fetch the first image
-                return request.user.images # A user has only one image
+                return request.user.image # A user has only one image
 
 
 
@@ -47,7 +47,7 @@ class EmbedFaceView(APIView):
         # Notice the syntax: sync_to_async(function)(arguments)
         await sync_to_async(ser.is_valid)(raise_exception=True)  # Validate the incoming data
         
-        image_instance = ser.validated_data['image']
+        image_instance = ser.validated_data['facial_image']
 
         val_result = await async_embed_face(payload=image_instance)
 
@@ -64,7 +64,7 @@ class EmbedFaceView(APIView):
             except IntegrityError:
                 return self._build_response({
                     "success": False,
-                    "detail": "User already has an associated image.",
+                    "detail": "User already has an associated facial image.",
                     "reason": "conflict",
                     "status_code": status.HTTP_409_CONFLICT
                 })
@@ -94,7 +94,7 @@ class EmbedFaceView(APIView):
 
             return self._build_response({
                 "success": False,
-                "detail": "No user image found.",
+                "detail": "No facial image found.",
                 "reason": "not_found",
                 "status_code": status.HTTP_404_NOT_FOUND
             })
@@ -104,7 +104,7 @@ class EmbedFaceView(APIView):
         # Validate
         await sync_to_async(ser.is_valid)(raise_exception=True)
 
-        image_instance = ser.validated_data['image']
+        image_instance = ser.validated_data['facial_image']
 
         val_result = await async_embed_face(payload=image_instance)
 
@@ -126,7 +126,7 @@ class EmbedFaceView(APIView):
 
         except Exception as e:
             return Response({
-                "detail": "User has no associated image.",
+                "detail": "User has no associated facial image.",
                 "data": None,
             }, status=status.HTTP_404_NOT_FOUND)
 
@@ -134,7 +134,7 @@ class EmbedFaceView(APIView):
         serializer = ImageSerializer(image_instance, context={'request': request})
 
         return Response({
-            "detail": "User image retrieved successfully.",
+            "detail": "Facial image retrieved successfully.",
             "data": serializer.data
         }, status=status.HTTP_200_OK)
 
@@ -147,13 +147,13 @@ class EmbedFaceView(APIView):
 
         except Exception as e:
             return Response({
-                "detail": "User has no associated image.",
+                "detail": "User has no associated facial image.",
             }, status=status.HTTP_404_NOT_FOUND)
 
         await image_instance.adelete()
 
         return Response({
-            "detail": "User image deleted successfully.",
+            "detail": "Facial image deleted successfully.",
         }, status=status.HTTP_200_OK)
 
     
@@ -171,10 +171,10 @@ class MatchesFeed(APIView):
         user = request.user
 
         try:
-            _ = user.images
+            _ = user.image
         except Image.DoesNotExist:
             return Response(
-                {"detail": "User has no associated image.",
+                {"detail": "User has no associated facial image.",
                  'Search_time': None,
                  'data': None},
                 status=status.HTTP_404_NOT_FOUND
@@ -184,7 +184,7 @@ class MatchesFeed(APIView):
 
         images_distances = Image.objects.select_related('user' # efficiently fetch user oand its related objects
             ).annotate(
-                distance=CosineDistance('embedding', user.images.embedding)
+                distance=CosineDistance('embedding', user.image.embedding)
                     ).filter(distance__lt=self.similarity_threshold).order_by('distance'
                         ).exclude(user=user)[:self.top_k]  # Exclude the current user's image and limit to top 5 matches
 
@@ -229,10 +229,10 @@ class TempMatchesFeed(APIView):
             )
 
         try:
-            _ = user.images
+            _ = user.image
         except Image.DoesNotExist:
             return Response(
-                {"detail": "User has no associated image.",
+                {"detail": "User has no associated facial image.",
                  'Search_time': None,
                  'data': None},
                 status=status.HTTP_404_NOT_FOUND
@@ -242,7 +242,7 @@ class TempMatchesFeed(APIView):
 
         images_distances = Image.objects.select_related('user' # efficiently fetch user oand its related objects
             ).annotate(
-                distance=CosineDistance('embedding', user.images.embedding)
+                distance=CosineDistance('embedding', user.image.embedding)
                     ).filter(distance__lt=self.similarity_threshold).order_by('distance'
                         ).exclude(user=user)[:self.top_k]  # Exclude the current user's image and limit to top 5 matches
 
