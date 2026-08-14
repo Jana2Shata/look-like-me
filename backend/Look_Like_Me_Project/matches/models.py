@@ -15,11 +15,11 @@ class Image(models.Model):
         User, 
         on_delete=models.CASCADE, 
         # verbose='image owner',
-        related_name='images',
+        related_name='image',
         )
     # verbose vs related_name: verbose is for human-readable admin display, related_name is for reverse lookups in code
     
-    image = models.ImageField(
+    facial_image = models.ImageField(
         upload_to='user_facial_images/',
         validators=[FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp'])],
         )
@@ -55,4 +55,4 @@ class Image(models.Model):
 
 
     def __str__(self):
-        return f"Image of {self.user.name}, path at {self.image.url}"
+        return f"Facial image of {self.user.name}, path at {self.facial_image.url}"

@@ -1,4 +1,6 @@
-from dj_rest_auth.registration.serializers import RegisterSerializer, _signup_field_required
+from dj_rest_auth.registration.serializers import (
+    RegisterSerializer, _signup_field_required,
+    )
 from dj_rest_auth.serializers import (
     UserDetailsSerializer, PasswordResetConfirmSerializer,
     PasswordResetSerializer, PasswordChangeSerializer,
@@ -11,6 +13,8 @@ from allauth.account.utils import user_pk_to_url_str
 from .models import User
 from .validators import validate_password
 from django.conf import settings
+
+# from matches.serializers import ImageSerializer
 
 class CustomRegisterSerializer(RegisterSerializer):
     "inherit FROM https://github.com/iMerica/dj-rest-auth/blob/master/dj_rest_auth/registration/serializers.py#L233"
@@ -104,17 +108,26 @@ class CustomUserDetailsSerializer(UserDetailsSerializer): # Returned login respo
 
 class UserProfileSerializer(serializers.HyperlinkedModelSerializer):
 
-    extra_kwargs = {
-        'email': {'read_only': True}, # email is read-only, can't be updated
-    }
+    facial_image = serializers.SerializerMethodField()
+    # print
     class Meta:
         model = User
-        fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio')
+        fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image')
 
         extra_kwargs = {
-            'email': {'read_only': True}, # email is read-only, can't be updated
-            'name': {'required': False}, # name is required
+            'email': {'read_only': True}, 
+            'uid': {'read_only': True}, 
+            'facial_image': {'read_only': True}, 
+
+            'name': {'required': False}, 
         }
+
+    def get_facial_image(self, obj):
+        
+        request = self.context.get('request')
+        image = getattr(obj, 'image', None)
+        return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
+
         
 class PublicUserProfileSerializer(serializers.ModelSerializer):
 
@@ -124,11 +137,19 @@ class PublicUserProfileSerializer(serializers.ModelSerializer):
         lookup_field='uid' # Default is pk
     )
 
+    facial_image = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio']
+        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image']
         read_only = fields
 
+    def get_facial_image(self, obj):
+        request = self.context.get('request')
+        # if # TODO: preferences check
+        #     return None
+        image = getattr(obj, 'image', None)
+        return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
 
 class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
     

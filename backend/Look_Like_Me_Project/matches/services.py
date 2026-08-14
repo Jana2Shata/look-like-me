@@ -71,22 +71,22 @@ async def async_embed_face(payload):
 
 
 
-def get_image_payload(image_instance):
-    """
-    Reads a saved model's ImageField and returns file metadata.
-    """
-    # 1. Open and read the raw bytes from storage
-    with image_instance.image.open('rb') as f:
-        file_content = f.read()
+# def get_image_payload(image_instance):
+#     """
+#     Reads a saved model's ImageField and returns file metadata.
+#     """
+#     # 1. Open and read the raw bytes from storage
+#     with image_instance.image.open('rb') as f:
+#         file_content = f.read()
 
-    # 2. Extract clean filename (removes path prefixes)
-    file_name = os.path.basename(image_instance.image.name)
+#     # 2. Extract clean filename (removes path prefixes)
+#     file_name = os.path.basename(image_instance.image.name)
 
-    # 3. Guess content type from filename ('image/jpeg', 'image/png', etc.)
-    content_type, _ = mimetypes.guess_type(image_instance.image.name)
+#     # 3. Guess content type from filename ('image/jpeg', 'image/png', etc.)
+#     content_type, _ = mimetypes.guess_type(image_instance.image.name)
     
-    return {
-        "file_name": file_name,
-        "file_content": file_content,
-        "content_type": content_type or "image/jpeg"  # Fallback if unknown
-    }
+#     return {
+#         "file_name": file_name,
+#         "file_content": file_content,
+#         "content_type": content_type or "image/jpeg"  # Fallback if unknown
+#     }
