@@ -282,6 +282,8 @@ REST_FRAMEWORK = {
     # to make responses consistent in keys
     'NON_FIELD_ERRORS_KEY': 'detail',
 
+    # 'EXCEPTION_HANDLER': 'globals.utils.integrity_exception_handler'
+
 }
 
 # ALLAUTH SETTINGS

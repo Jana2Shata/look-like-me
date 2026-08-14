@@ -41,11 +41,13 @@ class Friendship(models.Model):
                 fields=['sender', 'receiver'],
                 name='unique_friendship_pair'
                 # Prevents duplicate friend requests from the same user
-            )
+            ),
+            # TODO: constraint to prevent self-friendship
+            # TODO: constraint to make the pair unique regardless of order 
         ]
     
     def __str__(self):
-        return f'{self.sender} → {self.receiver} [{self.status}]'
+        return f'{self.sender} → {self.receiver} ({self.status})'
 
 
 class MatchInteraction(models.Model):
@@ -81,10 +83,10 @@ class MatchInteraction(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    deleted_at = models.DateTimeField(
-        null=True,
-        # Soft delete: null means not deleted, timestamp means when it was deleted
-    )
+    # deleted_at = models.DateTimeField(
+    #     null=True,
+    #     # Soft delete: null means not deleted, timestamp means when it was deleted
+    # )
 
 
 
