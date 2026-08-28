@@ -29,11 +29,33 @@ class MatchesFeedSerializer(ModelSerializer):
     # Computed field to show similarity score instead of raw vector distance
     similarity_score = serializers.SerializerMethodField()
 
+    is_liked = serializers.SerializerMethodField()
+
+    is_saved = serializers.SerializerMethodField()
+
     class Meta:
         model = Image
-        fields = ['user', 'similarity_score']
+        fields = ['user', 'similarity_score', 'is_liked', 'is_saved']
         read_only = fields
 
     def get_similarity_score(self, obj): # Mapped by name
         # pgvector's CosineDistance = 1 - cosine_similarity, so:
         return round(1 - obj.distance, 4)
+
+
+    def get_is_liked(self, obj):
+
+        request = self.context.get('request')
+        interactions = getattr(obj, 'received_interactions', None)
+        if interactions:
+            return interactions.all().filter(sender=request.user, type='like').exists()
+        return False
+
+
+    def get_is_saved(self, obj):
+        
+        request = self.context.get('request')
+        interactions = getattr(obj, 'received_interactions', None)
+        if interactions:
+            return interactions.all().filter(sender=request.user, type='save').exists()
+        return False

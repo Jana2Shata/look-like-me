@@ -216,6 +216,9 @@ class TempMatchesFeed(APIView):
 
     similarity_threshold = 1- settings.AI_HYPER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
     top_k = settings.AI_HYPER_PARAMS['TOP_K']
+    similarity_threshold = 0.8
+    top_k = 15
+
 
     def get(self, request, id):
 
