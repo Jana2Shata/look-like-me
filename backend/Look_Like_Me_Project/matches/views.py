@@ -6,6 +6,7 @@ from django.db import IntegrityError
 from pgvector.django import CosineDistance
 import time
 from django.conf import settings
+from django.db.models import Prefetch
 
 from .serializers import (
     ImageSerializer,
@@ -16,6 +17,7 @@ from .services import (
     )
 from .models import Image
 from auths.models import User
+from relations.models import MatchInteraction
 
 
 
@@ -186,7 +188,11 @@ class MatchesFeed(APIView):
             ).annotate(
                 distance=CosineDistance('embedding', user.image.embedding)
                     ).filter(distance__lt=self.similarity_threshold).order_by('distance'
-                        ).exclude(user=user)[:self.top_k]  # Exclude the current user's image and limit to top 5 matches
+                        ).exclude(user=user)[:self.top_k # Exclude the current user's image and limit to top 5 matches
+                            ].prefetch_related(Prefetch( # Prefetch the received interactions of each matched user from the current request's user to optimize database lookups
+                                lookup='user__received_interactions',
+                                queryset=MatchInteraction.objects.filter(sender=user),
+                            ))
 
         end_time = time.perf_counter()
 
