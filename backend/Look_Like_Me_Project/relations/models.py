@@ -81,10 +81,10 @@ class MatchInteraction(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    deleted_at = models.DateTimeField(
-        null=True,
-        # Soft delete: null means not deleted, timestamp means when it was deleted
-    )
+    # deleted_at = models.DateTimeField(
+    #     null=True,
+    #     # Soft delete: null means not deleted, timestamp means when it was deleted
+    # )
 
 
 

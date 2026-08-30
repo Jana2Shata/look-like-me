@@ -29,9 +29,13 @@ class MatchesFeedSerializer(ModelSerializer):
     # Computed field to show similarity score instead of raw vector distance
     similarity_score = serializers.SerializerMethodField()
 
+    is_liked = serializers.SerializerMethodField()
+
+    is_saved = serializers.SerializerMethodField()
+
     class Meta:
         model = Image
-        fields = ['user', 'similarity_score']
+        fields = ['user', 'similarity_score', 'is_liked', 'is_saved']
         read_only = fields
 
     def get_similarity_score(self, obj): # Mapped by name
@@ -41,17 +45,19 @@ class MatchesFeedSerializer(ModelSerializer):
 
     def get_is_liked(self, obj):
 
-        request = self.context.get('request')
-        interactions = getattr(obj.user, 'received_interactions', None)
-        if interactions:        # ^ because the serializer is of the Image object, not directly the user!
-            return interactions.all().filter(sender=request.user, type='like').exists()
-        return False
+        # request = self.context.get('request')
+        # interactions = getattr(obj.user, 'received_interactions', None)
+        # if interactions:        # ^ because the serializer is of the Image object, not directly the user!
+        #     return interactions.all().filter(sender=request.user, type='like').exists()
+        # return False
+        return any(i.type == 'like' for i in obj.user.received_interactions.all())
 
 
     def get_is_saved(self, obj):
         
-        request = self.context.get('request')
-        interactions = getattr(obj.user, 'received_interactions', None)
-        if interactions:
-            return interactions.all().filter(sender=request.user, type='save').exists()
-        return False
+        # request = self.context.get('request')
+        # interactions = getattr(obj.user, 'received_interactions', None)
+        # if interactions:
+        #     return interactions.all().filter(sender=request.user, type='save').exists()
+        # return False
+        return any(i.type == 'save' for i in obj.user.received_interactions.all())
