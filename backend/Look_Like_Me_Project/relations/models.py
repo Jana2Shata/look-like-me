@@ -1,4 +1,5 @@
 from django.db import models
+
 from auths.models import User
 import uuid
 
@@ -37,13 +38,22 @@ class Friendship(models.Model):
 
     class Meta:
         constraints = [
+        # SOURCE: https://stackoverflow.com/questions/73522447/django-dm-model-constraint-uniqueconstraint-or-checkconstraint
             models.UniqueConstraint(
-                fields=['sender', 'receiver'],
-                name='unique_friendship_pair'
-                # Prevents duplicate friend requests from the same user
+                models.functions.Least('sender', 'receiver'),
+                models.functions.Greatest('sender', 'receiver'),
+                name='asymmetric_unique_friendship_pair',
+                violation_error_message='A friendship instance with this user already exists.',
+                # Prevents duplicate friend requests from the same user and/or the reverse direction (A → B and B → A)
             ),
-            # TODO: constraint to prevent self-friendship
-            # TODO: constraint to make the pair unique regardless of order 
+
+            models.CheckConstraint(
+                name='self_friendship_constraint',
+                condition= ~models.Q(
+                    sender=models.F("receiver")),
+                violation_error_message='Cannot be friends with self!'
+                # Prevents self-friendship    
+            ),
         ]
     
     def __str__(self):
