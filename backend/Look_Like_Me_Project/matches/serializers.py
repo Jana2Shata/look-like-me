@@ -37,3 +37,21 @@ class MatchesFeedSerializer(ModelSerializer):
     def get_similarity_score(self, obj): # Mapped by name
         # pgvector's CosineDistance = 1 - cosine_similarity, so:
         return round(1 - obj.distance, 4)
+
+
+    def get_is_liked(self, obj):
+
+        request = self.context.get('request')
+        interactions = getattr(obj.user, 'received_interactions', None)
+        if interactions:        # ^ because the serializer is of the Image object, not directly the user!
+            return interactions.all().filter(sender=request.user, type='like').exists()
+        return False
+
+
+    def get_is_saved(self, obj):
+        
+        request = self.context.get('request')
+        interactions = getattr(obj.user, 'received_interactions', None)
+        if interactions:
+            return interactions.all().filter(sender=request.user, type='save').exists()
+        return False
