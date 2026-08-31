@@ -2,7 +2,7 @@ from rest_framework.serializers import (
     ModelSerializer, SlugRelatedField,
     HiddenField, CurrentUserDefault,
     CharField, Serializer,
-    ValidationError,
+    ValidationError, SerializerMethodField
 )
 from rest_framework.validators import UniqueTogetherValidator
 from django.core.exceptions import ValidationError as DjangoValidationError, NON_FIELD_ERRORS
@@ -109,3 +109,25 @@ class ReceiveFriendshipSerializer(ModelSerializer):
         model = Friendship
         fields = ['sender', 'status', 'created_at']
         read_only_fields = fields  # nothing is writable from the client's payload
+
+
+
+
+class AcceptedFriendshipSerializer(ModelSerializer):
+    """
+    Used only for listing accepted friendship records (GET).
+    No client-writable fields
+    """
+
+    user = SerializerMethodField()
+
+    class Meta:
+        model = Friendship
+        fields = ['user', 'status', 'created_at']
+        read_only_fields = fields  # nothing is writable from the client's payload
+
+
+    def get_user(self, obj):
+        request = self.context.get('request')
+        return obj.sender.uid if obj.sender != request.user else obj.receiver.uid
+
