@@ -11,7 +11,11 @@ from dj_rest_auth.views import (
 )
 
 # local imports
-from .views import LoginView, LogoutView, LogoutAllView, ManageUserView, PublicUserDetailView
+from .views import (
+    LoginView, LogoutView, LogoutAllView, 
+    ManageUserView, DeleteUserView,
+    PublicUserDetailView, 
+    )
 
 
 
@@ -31,7 +35,9 @@ urlpatterns = [
 
     path('profile/', ManageUserView.as_view(), name='user_profile'),
 
-    path('users/<uuid:uid>/', PublicUserDetailView.as_view(), name='user-detail'),
+    path('profile/delete/', DeleteUserView.as_view(), name='user_delete'),
+
+    path('users/<uid>/', PublicUserDetailView.as_view(), name='user-detail'),
 
     re_path(
         r'^password-reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$',
