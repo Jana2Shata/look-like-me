@@ -1,6 +1,8 @@
 from django.db import models
-from auths.models import User
 import uuid
+
+from auths.models import User
+
 
 class Conversation(models.Model):
     """
@@ -30,10 +32,13 @@ class ConversationParticipant(models.Model):
 
     user = models.ForeignKey(
         User,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL, 
+        null=True,
         related_name='conversations',
         verbose_name='conversation participant user',
+        
     )
+   
 
     last_read_at = models.DateTimeField(
         null=True,
@@ -65,13 +70,11 @@ class Message(models.Model):
     )
 
     sender = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
+        User, 
+        on_delete=models.SET_NULL,
+        null=True,
         related_name='sent_messages',
         verbose_name='message sender',
-        # OR (for soft delete):
-        # on_delete=models.SET_NULL,
-        # null=True,
         
     )
 

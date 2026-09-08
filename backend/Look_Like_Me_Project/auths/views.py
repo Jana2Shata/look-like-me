@@ -21,11 +21,10 @@ from django.contrib.auth.backends import ModelBackend
 
 # local apps import
 from .models import User
-from .serializers import (
-    CustomUserDetailsSerializer, 
+from .serializers import ( 
     UserProfileSerializer,
     PublicUserProfileSerializer,)
-from globals.mixins import KnoxTokenOnlyMixin
+
         
 
 
@@ -110,6 +109,22 @@ class ManageUserView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         """Retrieve and return authenticated user"""
         return self.request.user
+
+
+class DeleteUserView(generics.DestroyAPIView):
+    """Delete the authenticated user"""
+
+    serializer_class = UserProfileSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    queryset = User.objects.all()
+
+    def get_object(self):
+        """Retrieve and return authenticated user"""
+        return self.request.user
+
+    def delete(self, request, *args, **kwargs):
+        self.destroy(request, *args, **kwargs)
+        return Response({"detail": "User account deleted successfully."}, status=status.HTTP_200_OK)
 
 
 class PublicUserDetailView(generics.RetrieveAPIView):

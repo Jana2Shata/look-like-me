@@ -11,7 +11,11 @@ from dj_rest_auth.views import (
 )
 
 # local imports
-from .views import LoginView, LogoutView, LogoutAllView, ManageUserView, PublicUserDetailView
+from .views import (
+    LoginView, LogoutView, LogoutAllView, 
+    ManageUserView, DeleteUserView,
+    PublicUserDetailView, 
+    )
 
 
 
@@ -30,6 +34,8 @@ urlpatterns = [
     path('registration/', include('dj_rest_auth.registration.urls')),
 
     path('profile/', ManageUserView.as_view(), name='user_profile'),
+
+    path('profile/delete/', DeleteUserView.as_view(), name='user_delete'),
 
     path('users/<uid>/', PublicUserDetailView.as_view(), name='user-detail'),
 
