@@ -112,6 +112,10 @@ INSTALLED_APPS = [
     # deleting old media files from disk
     # SOURCE: https://medium.com/dajngo/django-cleanup-automatically-deletes-old-file-for-filefield-and-image-c7859969a85c
     'django_cleanup.apps.CleanupConfig',
+
+    # support for ISO country codes
+    # SOURCE: https://pypi.org/project/django-countryfield/
+    'django_countries',
 ]
 
 AUTH_USER_MODEL = 'auths.User' # replaces the default User model with our custom one

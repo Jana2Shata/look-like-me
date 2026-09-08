@@ -1,8 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
-from .managers import UserManager
+from django_countries.fields import CountryField
 import uuid
+from .managers import UserManager
+
 
 
 class User(AbstractUser):
@@ -38,10 +40,10 @@ class User(AbstractUser):
         null=True,
         blank=False,
     ) # not datetime
-    country = models.CharField(
-        max_length=100,
+    country = CountryField( # SOURCE: https://pypi.org/project/django-countryfield/
         null=True,
-        blank=False,)
+        blank=False,
+        )
 
     profile_photo = models.ImageField( # so Django validates it's a real image
         upload_to='profile_photos/', 

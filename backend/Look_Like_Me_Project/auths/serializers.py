@@ -9,6 +9,8 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from allauth.account.adapter import get_adapter
 from allauth.account.utils import user_pk_to_url_str
+from django_countries.serializer_fields import CountryField
+from django_countries.serializers import CountryFieldMixin
 
 from .models import User
 from .validators import validate_password
@@ -40,8 +42,7 @@ class CustomRegisterSerializer(RegisterSerializer):
         allow_null=True,
     )
 
-    country = serializers.CharField(
-        max_length=100,
+    country = CountryField(
         required=False,
         allow_null=True,
     )
@@ -106,10 +107,10 @@ class CustomUserDetailsSerializer(UserDetailsSerializer): # Returned login respo
 
 
 
-class UserProfileSerializer(serializers.HyperlinkedModelSerializer):
+class UserProfileSerializer(CountryFieldMixin, serializers.HyperlinkedModelSerializer):
 
     facial_image = serializers.SerializerMethodField()
-    # print
+    
     class Meta:
         model = User
         fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image')
@@ -129,7 +130,7 @@ class UserProfileSerializer(serializers.HyperlinkedModelSerializer):
         return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
 
         
-class PublicUserProfileSerializer(serializers.ModelSerializer):
+class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer):
 
     # Creates a clickable link pointing to the user's detail view
     url = serializers.HyperlinkedIdentityField(
