@@ -10,10 +10,11 @@ from django.db.models import Q
 from .models import MatchInteraction, Friendship,  BlockedUser
 from .serializers import (
     SendFriendshipSerializer, ReceiveFriendshipSerializer,
-    AcceptedFriendshipSerializer
+    AcceptedFriendshipSerializer, BlockedUserSerializer
     )
 from .mixins import MatchInteractionMixin, FriendshipRequestMixin
 from auths.models import User
+from globals.utils import exclude_blocked_users  
 
 
 class LikesView(MatchInteractionMixin):
@@ -33,7 +34,9 @@ class SenderFriendshipRequestView(FriendshipRequestMixin):
 
     def get_queryset(self):
         # Filter requests where the current user is the sender and status is pending
-        return Friendship.objects.filter(sender=self.request.user, status='pending')
+        qs = Friendship.objects.filter(sender=self.request.user, status='pending')
+        # Exclude requests sent to users who are now blocked
+        return exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
 
     def post(self, request, *args, **kwargs):
         return self.perform_create(request, *args, **kwargs)
@@ -50,7 +53,9 @@ class ReceiverFriendshipRequestView(FriendshipRequestMixin):
 
     def get_queryset(self):
         # Filter requests where the current user is the sender and status is pending
-        return Friendship.objects.filter(receiver=self.request.user, status='pending')
+        qs = Friendship.objects.filter(receiver=self.request.user, status='pending')
+        # Exclude incoming requests from blocked senders
+        return exclude_blocked_users(qs, self.request.user, user_field='sender_id')
 
     def put(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
@@ -75,11 +80,15 @@ class FriendshipView(
 
     def get_queryset(self):
         # Filter friendships where the current user is either the sender or the receiver, and status is 'accepted'
-        return Friendship.objects.filter(
-            Q(sender=self.request.user) | Q(receiver=self.request.user),
-            status='accepted')
-            # Q allows for more complex DB queries (beyond mere AND)
-            # The pipe | performs OR, while simple comma , translates as AND
+        qs = Friendship.objects.filter(
+        # Q allows for more complex DB queries (beyond mere AND)
+        # The pipe | performs OR, while simple comma , translates as AND
+        Q(sender=self.request.user) | Q(receiver=self.request.user),
+        status='accepted'
+        )
+        # Filter both sides of accepted friendships
+        qs = exclude_blocked_users(qs, self.request.user, user_field='sender_id')
+        return exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
 
 
     def get(self, request, *args, **kwargs):
@@ -106,4 +115,43 @@ class FriendshipView(
             status=status.HTTP_200_OK)
     
 
+
+class BlockedUserView(
+    mixins.ListModelMixin,
+    generics.GenericAPIView):
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = BlockedUserSerializer
+
+    def get_queryset(self):
+        # Fetch only block records created by the logged-in user (the sender)
+        return BlockedUser.objects.filter(sender=self.request.user).select_related('receiver')
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response(
+            {'detail': "User blocked successfully."},
+            status=status.HTTP_201_CREATED
+        )
+
+    def delete(self, request, *args, **kwargs):
+        receiver_uid = kwargs.get('receiver')
+        receiver = get_object_or_404(User, uid=receiver_uid)
+
+        deleted_count, detailed_objects_count = self.get_queryset().filter(receiver=receiver).delete()
+        if not deleted_count:
+            raise exceptions.NotFound("No block record found for this user.")
+
+        return Response(
+            {'detail': "User unblocked successfully."},
+            status=status.HTTP_200_OK
+        )
 

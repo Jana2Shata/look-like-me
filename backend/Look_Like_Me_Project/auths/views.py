@@ -26,7 +26,7 @@ from .serializers import (
     UserProfileSerializer,
     PublicUserProfileSerializer,)
 from globals.mixins import KnoxTokenOnlyMixin
-        
+from globals.utils import exclude_blocked_users     
 
 
 
@@ -117,3 +117,10 @@ class PublicUserDetailView(generics.RetrieveAPIView):
     serializer_class = PublicUserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
     lookup_field='uid'
+
+    def get_queryset(self):
+        # removes blocked users from the set that get_object() will use
+        return exclude_blocked_users(
+            User.objects.all(), 
+            self.request.user, 
+        )

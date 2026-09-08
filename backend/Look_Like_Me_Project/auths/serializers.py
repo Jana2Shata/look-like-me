@@ -151,6 +151,12 @@ class PublicUserProfileSerializer(serializers.ModelSerializer):
         image = getattr(obj, 'image', None)
         return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
 
+class MinimalUserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['uid', 'name', 'profile_photo']
+        read_only_fields = fields
+
 class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
     
     def custom_validation(self, attrs):

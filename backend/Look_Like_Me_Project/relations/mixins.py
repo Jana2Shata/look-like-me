@@ -10,6 +10,7 @@ from .serializers import (
     MatchInteractionSerializer,
     )
 from auths.models import User
+from globals.utils import exclude_blocked_users  
 
 
 class MatchInteractionMixin(
@@ -25,7 +26,9 @@ class MatchInteractionMixin(
 
     def get_queryset(self):
         # Filter interactions where the current user is the sender and type is what the subclass specified
-        return MatchInteraction.objects.filter(sender=self.request.user, type=self.type)
+        qs = MatchInteraction.objects.filter(sender=self.request.user, type=self.type)
+        # Exclude blocked receivers from your likes/saves lists
+        return exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
 
 
     def get(self, request, *args, **kwargs):

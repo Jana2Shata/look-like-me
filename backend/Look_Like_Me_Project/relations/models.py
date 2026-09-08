@@ -128,8 +128,7 @@ class BlockedUser(models.Model):
     receiver = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='blocked_by', # CONSIDER: this should not be accessible!! HOW!!
-        verbose_name='blocked user',
+        related_name='+'  # Disables reverse lookup (user.blocked_by)
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -145,7 +144,7 @@ class BlockedUser(models.Model):
         indexes = [
             models.Index(fields=['receiver'], name='idx_blocked_id'),
         ] # Extra index on receiver_id:
-          # needed to check "has this user been blocked by anyone?" efficiently
+        # needed to check "has this user been blocked by anyone?" efficiently
         
 
     def __str__(self):
