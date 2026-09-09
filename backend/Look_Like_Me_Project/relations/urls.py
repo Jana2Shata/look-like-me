@@ -28,6 +28,6 @@ urlpatterns = [
     path('friendships/', FriendshipView.as_view(), name='friendships'),
     path('friendships/<uuid:user>/', FriendshipView.as_view(), name='friendships-detail'),
 
-    path('blocked-users/', BlockedUserView.as_view(), name='blocked-users'),
-    path('blocked-users/<uuid:receiver>/', BlockedUserView.as_view(), name='blocked-users-detail'),
+    path('blocks/', BlockedUserView.as_view(), name='blocked-users'),
+    path('blocks/<uuid:receiver>/', BlockedUserView.as_view(), name='blocked-users-detail'),
 ]
