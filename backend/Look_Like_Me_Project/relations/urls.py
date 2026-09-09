@@ -5,7 +5,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     LikesView, SavesView,
     SenderFriendshipRequestView, ReceiverFriendshipRequestView,
-    FriendshipView
+    FriendshipView, BlockedUserView
 )
 
 # router = DefaultRouter()
@@ -27,4 +27,7 @@ urlpatterns = [
 
     path('friendships/', FriendshipView.as_view(), name='friendships'),
     path('friendships/<uuid:user>/', FriendshipView.as_view(), name='friendships-detail'),
+
+    path('blocks/', BlockedUserView.as_view(), name='blocked-users'),
+    path('blocks/<uuid:receiver>/', BlockedUserView.as_view(), name='blocked-users-detail'),
 ]

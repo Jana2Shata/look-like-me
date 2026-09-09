@@ -10,6 +10,8 @@ from rest_framework.settings import api_settings
 
 from .models import Friendship, MatchInteraction, BlockedUser
 from auths.models import User
+from globals.utils import NonBlockedUserSlugField
+from auths.serializers import MinimalUserProfileSerializer    
 
 """
     Saves/likes are created/deleted only, not updated.
@@ -20,11 +22,10 @@ class MatchInteractionSerializer(ModelSerializer):
     # Automatically pulls request.user from context and hides the field from input validation
     sender = HiddenField(default=CurrentUserDefault())
 
-    
-    receiver = SlugRelatedField(
+    receiver = NonBlockedUserSlugField(
         queryset=User.objects.all(),
         slug_field='uid',
-        )
+    )
     
 
     class Meta:
@@ -47,9 +48,9 @@ class SendFriendshipSerializer(ModelSerializer):
     sender = HiddenField(default=CurrentUserDefault())
 
     
-    receiver = SlugRelatedField(
-        queryset=User.objects.all(),
-        slug_field='uid',
+    receiver = NonBlockedUserSlugField(
+            queryset=User.objects.all(),
+            slug_field='uid',
         )
     
     class Meta:
@@ -131,3 +132,44 @@ class AcceptedFriendshipSerializer(ModelSerializer):
         request = self.context.get('request')
         return obj.sender.uid if obj.sender != request.user else obj.receiver.uid
 
+
+class BlockedUserSerializer(ModelSerializer):
+
+    sender = HiddenField(default=CurrentUserDefault())
+
+    # validates and looks up target receiver by 'uid' during POST
+    receiver = NonBlockedUserSlugField(
+        queryset=User.objects.all(),
+        slug_field='uid'
+    )
+
+    class Meta:
+        model = BlockedUser
+        fields = ['sender', 'receiver', 'created_at']
+        read_only_fields = ['created_at']
+
+    def validate(self, attrs):
+        sender = attrs['sender']
+        receiver = attrs['receiver']
+
+        # prevent self-blocking
+        if sender == receiver:
+            raise ValidationError("You cannot block yourself")
+
+        # prevent duplicate blocks
+        if BlockedUser.objects.filter(sender=sender, receiver=receiver).exists():
+            raise ValidationError("This user is already blocked")
+
+        return attrs
+
+    # transforms model instance into final JSON response for GET requests
+    def to_representation(self, instance):
+
+        rep = super().to_representation(instance)
+
+        # replace string uid with full nested receiver profile data
+        rep['receiver'] = MinimalUserProfileSerializer(
+            instance.receiver, 
+            context=self.context
+        ).data
+        return rep

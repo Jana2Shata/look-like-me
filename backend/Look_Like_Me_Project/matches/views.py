@@ -18,6 +18,7 @@ from .services import (
 from .models import Image
 from auths.models import User
 from relations.models import MatchInteraction
+from globals.utils import exclude_blocked_users     
 
 
 
@@ -172,6 +173,13 @@ class MatchesFeed(APIView):
 
         user = request.user
 
+        # filter out blocked users at the database level first
+        non_blocked_images = exclude_blocked_users(
+            Image.objects.all(), 
+            user, 
+            user_field='user_id'
+        )
+
         try:
             _ = user.image
         except Image.DoesNotExist:
@@ -184,7 +192,7 @@ class MatchesFeed(APIView):
 
         start_time = time.perf_counter()
 
-        images_distances = Image.objects.select_related('user' # efficiently fetch user oand its related objects
+        images_distances = non_blocked_images.select_related('user' # efficiently fetch user oand its related objects
             ).annotate(
                 distance=CosineDistance('embedding', user.image.embedding)
                     ).filter(distance__lt=self.similarity_threshold).order_by('distance'
