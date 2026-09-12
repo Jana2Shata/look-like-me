@@ -17,6 +17,8 @@ from dotenv import load_dotenv
 
 from datetime import timedelta
 
+from django.templatetags.static import static
+
 load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -63,6 +65,9 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 # Application definition
 INSTALLED_APPS = [
+    # Admin site styling (must precede django.contrib.admin)
+    "unfold",
+
     # admin contexts grouping
         # FROM https://www.youtube.com/watch?v=uYXMzVa6VVg&list=WL&index=2&t=112s
     'django_admin_contexts',
@@ -159,6 +164,46 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
+# unfold admin configuration options
+# https://unfoldadmin.com/docs/configuration/settings/
+UNFOLD = {
+    "SITE_TITLE": "Look Like Me",
+    "SITE_HEADER": "Look Like Me",
+    "SITE_VERSION": "0.1.0",
+    "SITE_URL": None,
+
+    "SITE_ICON": lambda request: static("images/logo.svg"),
+
+    "SITE_FAVICONS": [
+        {
+            "rel": "icon",
+            "sizes": "32x32",
+            "type": "image/svg+xml",
+            "href": lambda request: static("images/logo.svg"),
+        },
+    ],
+
+    "COLORS": {
+        "primary": {
+            "50": "245 243 255",
+            "100": "237 233 254",
+            "200": "221 214 254",
+            "300": "196 181 253",
+            "400": "167 139 250",
+            "500": "124 110 248",
+            "600": "109 90 232",
+            "700": "91 71 210",
+            "800": "75 56 180",
+            "900": "61 46 148",
+            "950": "38 27 100",
+        },
+    },
+
+    "LOGIN": {
+        "image": lambda request: static("images/login-hero.jpg"),
+    },
+}
+
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
@@ -226,6 +271,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 
 
 
