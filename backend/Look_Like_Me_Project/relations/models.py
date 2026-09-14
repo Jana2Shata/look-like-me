@@ -55,6 +55,10 @@ class Friendship(models.Model):
                 # Prevents self-friendship    
             ),
         ]
+
+        indexes = [
+            models.Index(fields=['sender', 'receiver', 'status'], name='sender_receiver_status_idx'),
+        ]
     
     def __str__(self):
         return f'{self.sender} → {self.receiver} ({self.status})'
