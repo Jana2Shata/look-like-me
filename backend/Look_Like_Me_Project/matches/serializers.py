@@ -33,9 +33,11 @@ class MatchesFeedSerializer(ModelSerializer):
 
     is_saved = serializers.SerializerMethodField()
 
+    friendship_status = serializers.SerializerMethodField()
+
     class Meta:
         model = Image
-        fields = ['user', 'similarity_score', 'is_liked', 'is_saved']
+        fields = ['user', 'similarity_score', 'is_liked', 'is_saved', 'friendship_status']
         read_only = fields
 
     def get_similarity_score(self, obj): # Mapped by name
@@ -61,3 +63,13 @@ class MatchesFeedSerializer(ModelSerializer):
         #     return interactions.all().filter(sender=request.user, type='save').exists()
         # return False
         return any(i.type == 'save' for i in obj.user.received_interactions.all())
+
+
+    def get_friendship_status(self, obj):
+        if obj.is_friends:
+            return 'friends'
+        if obj.is_pending_sent:
+            return 'pending_sent'
+        if obj.is_pending_received:
+            return 'pending_received'
+        return None

@@ -6,7 +6,7 @@ from django.db import IntegrityError
 from pgvector.django import CosineDistance
 import time
 from django.conf import settings
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Exists, OuterRef, Q
 
 from .serializers import (
     ImageSerializer,
@@ -17,7 +17,7 @@ from .services import (
     )
 from .models import Image
 from auths.models import User
-from relations.models import MatchInteraction
+from relations.models import MatchInteraction, Friendship
 from globals.utils import exclude_blocked_users     
 
 
@@ -190,14 +190,38 @@ class MatchesFeed(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # OuterRef('user') refers to the *matched* user on each Image row.
+        # `user` (no OuterRef) is the currently authenticated user, fixed for the whole query.
+        friends_qs = Friendship.objects.filter(
+            Q(sender=OuterRef('user'), receiver=user) |
+            Q(sender=user, receiver=OuterRef('user')),
+            status='accepted',
+        )
+        pending_sent_qs = Friendship.objects.filter(
+            sender=user,
+            receiver=OuterRef('user'),
+            status='pending',
+        )
+        pending_received_qs = Friendship.objects.filter(
+            sender=OuterRef('user'),
+            receiver=user,
+            status='pending',
+        )
+
+
         start_time = time.perf_counter()
 
         images_distances = non_blocked_images.select_related('user' # efficiently fetch user oand its related objects
             ).annotate(
-                distance=CosineDistance('embedding', user.image.embedding)
+                distance=CosineDistance('embedding', user.image.embedding),
+                is_friends=Exists(friends_qs),
+                is_pending_sent=Exists(pending_sent_qs),
+                is_pending_received=Exists(pending_received_qs),
+                # better for performance, for it compiles within the same single query in the DB side, rather than doing separate queries
                     ).filter(distance__lt=self.similarity_threshold).order_by('distance'
                         ).exclude(user=user)[:self.top_k # Exclude the current user's image and limit to top 5 matches
                             ].prefetch_related(Prefetch( # Prefetch the received interactions of each matched user from the current request's user to optimize database lookups
+                                                         # it DOES perform additional queries, but it's needed here in order to return the actual instances, rather than only boolean values
                                 lookup='user__received_interactions',
                                 queryset=MatchInteraction.objects.filter(sender=user),
                             ))
