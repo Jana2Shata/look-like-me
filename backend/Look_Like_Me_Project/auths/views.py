@@ -1,13 +1,10 @@
 # django imports
-from django.shortcuts import render
 from django.contrib.auth import login, logout
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q, OuterRef, Exists, Prefetch
 
 # rest_framework imports
-from rest_framework import generics, authentication, permissions
+from rest_framework import generics, permissions
 from rest_framework.settings import api_settings
-from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -17,14 +14,13 @@ from dj_rest_auth.serializers import LoginSerializer
 # knox imports
 from knox.views import LoginView, LogoutView, LogoutAllView
 from knox.auth import TokenAuthentication
-from django.contrib.auth.backends import ModelBackend
 
 # local apps import
 from .models import User
 from .serializers import ( 
     UserProfileSerializer,
     PublicUserProfileSerializer,)
-from globals.mixins import KnoxTokenOnlyMixin
+from relations.models import Friendship, MatchInteraction
 from globals.utils import exclude_blocked_users     
 
         
@@ -136,8 +132,35 @@ class PublicUserDetailView(generics.RetrieveAPIView):
     lookup_field='uid'
 
     def get_queryset(self):
+
+        user = self.request.user
         # removes blocked users from the set that get_object() will use
-        return exclude_blocked_users(
+        blocked_users_queryset = exclude_blocked_users(
             User.objects.all(), 
-            self.request.user, 
+            user, 
         )
+
+        friends_qs = Friendship.objects.filter(
+            Q(sender=OuterRef('pk'), receiver=user) |
+            Q(sender=user, receiver=OuterRef('pk')),
+            status='accepted',
+        )
+        pending_sent_qs = Friendship.objects.filter(
+            sender=user,
+            receiver=OuterRef('pk'),
+            status='pending',
+        )
+        pending_received_qs = Friendship.objects.filter(
+            sender=OuterRef('pk'),
+            receiver=user,
+            status='pending',
+        )
+
+        return blocked_users_queryset.select_related('image').annotate(
+            is_friends=Exists(friends_qs),
+            is_pending_sent=Exists(pending_sent_qs),
+            is_pending_received=Exists(pending_received_qs),
+        ).prefetch_related(Prefetch(
+            lookup='received_interactions',
+            queryset=MatchInteraction.objects.filter(sender=user),
+        ))

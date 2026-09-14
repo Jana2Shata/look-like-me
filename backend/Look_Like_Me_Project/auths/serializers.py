@@ -140,9 +140,15 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
 
     facial_image = serializers.SerializerMethodField()
 
+    is_liked = serializers.SerializerMethodField()
+
+    is_saved = serializers.SerializerMethodField()
+
+    friendship_status = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image']
+        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image', 'is_liked', 'is_saved', 'friendship_status']
         read_only = fields
 
     def get_facial_image(self, obj):
@@ -151,6 +157,28 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
         #     return None
         image = getattr(obj, 'image', None)
         return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
+
+
+    
+    def get_is_liked(self, obj):
+
+        return any(i.type == 'like' for i in obj.received_interactions.all())
+
+
+    def get_is_saved(self, obj):
+        
+        return any(i.type == 'save' for i in obj.received_interactions.all())
+
+
+    def get_friendship_status(self, obj):
+
+        if obj.is_friends:
+            return 'friends'
+        if obj.is_pending_sent:
+            return 'pending_sent'
+        if obj.is_pending_received:
+            return 'pending_received'
+        return None
 
 class MinimalUserProfileSerializer(serializers.ModelSerializer):
     class Meta:
