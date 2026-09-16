@@ -174,10 +174,9 @@ class MatchesFeed(APIView):
         user = request.user
 
         # filter out blocked users at the database level first
-        non_blocked_images = exclude_blocked_users(
-            Image.objects.all(), 
-            user, 
-            user_field='user_id'
+        non_blocked_users = exclude_blocked_users(
+                    User.objects.all(), 
+                    user, 
         )
 
         try:
@@ -190,20 +189,20 @@ class MatchesFeed(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # OuterRef('user') refers to the *matched* user on each Image row.
+        # OuterRef('pk') refers to the *matched* user.
         # `user` (no OuterRef) is the currently authenticated user, fixed for the whole query.
         friends_qs = Friendship.objects.filter(
-            Q(sender=OuterRef('user'), receiver=user) |
-            Q(sender=user, receiver=OuterRef('user')),
+            Q(sender=OuterRef('pk'), receiver=user) |
+            Q(sender=user, receiver=OuterRef('pk')),
             status='accepted',
         )
         pending_sent_qs = Friendship.objects.filter(
             sender=user,
-            receiver=OuterRef('user'),
+            receiver=OuterRef('pk'),
             status='pending',
         )
         pending_received_qs = Friendship.objects.filter(
-            sender=OuterRef('user'),
+            sender=OuterRef('pk'),
             receiver=user,
             status='pending',
         )
@@ -211,18 +210,18 @@ class MatchesFeed(APIView):
 
         start_time = time.perf_counter()
 
-        images_distances = non_blocked_images.select_related('user' # efficiently fetch user oand its related objects
+        images_distances = non_blocked_users.select_related('image' # efficiently fetch the related image objects
             ).annotate(
-                distance=CosineDistance('embedding', user.image.embedding),
+                distance=CosineDistance('image__embedding', user.image.embedding),
                 is_friends=Exists(friends_qs),
                 is_pending_sent=Exists(pending_sent_qs),
                 is_pending_received=Exists(pending_received_qs),
                 # better for performance, for it compiles within the same single query in the DB side, rather than doing separate queries
                     ).filter(distance__lt=self.similarity_threshold).order_by('distance'
-                        ).exclude(user=user)[:self.top_k # Exclude the current user's image and limit to top 5 matches
+                        ).exclude(pk=user.pk)[:self.top_k # Exclude the current user's image and limit to top 5 matches
                             ].prefetch_related(Prefetch( # Prefetch the received interactions of each matched user from the current request's user to optimize database lookups
                                                          # it DOES perform additional queries, but it's needed here in order to return the actual instances, rather than only boolean values
-                                lookup='user__received_interactions',
+                                lookup='received_interactions',
                                 queryset=MatchInteraction.objects.filter(sender=user),
                             ))
 

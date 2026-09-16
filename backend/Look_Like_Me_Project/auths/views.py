@@ -135,7 +135,7 @@ class PublicUserDetailView(generics.RetrieveAPIView):
 
         user = self.request.user
         # removes blocked users from the set that get_object() will use
-        blocked_users_queryset = exclude_blocked_users(
+        non_blocked_users_queryset = exclude_blocked_users(
             User.objects.all(), 
             user, 
         )
@@ -156,7 +156,7 @@ class PublicUserDetailView(generics.RetrieveAPIView):
             status='pending',
         )
 
-        return blocked_users_queryset.select_related('image').annotate(
+        return non_blocked_users_queryset.select_related('image').annotate(
             is_friends=Exists(friends_qs),
             is_pending_sent=Exists(pending_sent_qs),
             is_pending_received=Exists(pending_received_qs),
