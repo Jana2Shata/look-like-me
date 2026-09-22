@@ -10,8 +10,8 @@ from rest_framework.settings import api_settings
 
 from .models import Friendship, MatchInteraction, BlockedUser
 from auths.models import User
-from globals.utils import NonBlockedUserSlugField
-from auths.serializers import MinimalUserProfileSerializer    
+from auths.serializers import MinimalUserProfileSerializer
+from globals.utils import NonBlockedUserSlugField    
 
 """
     Saves/likes are created/deleted only, not updated.
@@ -40,6 +40,16 @@ class MatchInteractionSerializer(ModelSerializer):
                 message= f"This action has already been performed"
             )
         ]
+
+    
+    # replace string uid with full nested receiver profile data
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['receiver'] = MinimalUserProfileSerializer(
+            instance.receiver,
+            context=self.context
+        ).data
+        return rep
 
 
 class SendFriendshipSerializer(ModelSerializer):
@@ -95,6 +105,14 @@ class SendFriendshipSerializer(ModelSerializer):
         self._instance.save() # Otherwise default create() re-calls Friendship(**validated_data), which creates a redundant second model instance
         return self._instance
 
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['receiver'] = MinimalUserProfileSerializer(
+            instance.receiver,
+            context=self.context
+        ).data
+        return rep
+
 
 class ReceiveFriendshipSerializer(ModelSerializer):
     """
@@ -111,8 +129,13 @@ class ReceiveFriendshipSerializer(ModelSerializer):
         fields = ['sender', 'status', 'created_at']
         read_only_fields = fields  # nothing is writable from the client's payload
 
-
-
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['sender'] = MinimalUserProfileSerializer(
+            instance.sender,
+            context=self.context
+        ).data
+        return rep
 
 class AcceptedFriendshipSerializer(ModelSerializer):
     """
@@ -127,10 +150,10 @@ class AcceptedFriendshipSerializer(ModelSerializer):
         fields = ['user', 'status', 'created_at']
         read_only_fields = fields  # nothing is writable from the client's payload
 
-
     def get_user(self, obj):
         request = self.context.get('request')
-        return obj.sender.uid if obj.sender != request.user else obj.receiver.uid
+        target_user = obj.receiver if obj.sender == request.user else obj.sender
+        return MinimalUserProfileSerializer(target_user, context=self.context).data
 
 
 class BlockedUserSerializer(ModelSerializer):
@@ -161,15 +184,11 @@ class BlockedUserSerializer(ModelSerializer):
             raise ValidationError("This user is already blocked")
 
         return attrs
-
-    # transforms model instance into final JSON response for GET requests
+    
     def to_representation(self, instance):
-
         rep = super().to_representation(instance)
-
-        # replace string uid with full nested receiver profile data
         rep['receiver'] = MinimalUserProfileSerializer(
-            instance.receiver, 
+            instance.receiver,
             context=self.context
         ).data
         return rep
