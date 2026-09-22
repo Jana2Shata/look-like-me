@@ -106,7 +106,6 @@ class CustomUserDetailsSerializer(UserDetailsSerializer): # Returned login respo
         fields = ('uid', 'email', 'name')
 
 
-
 class UserProfileSerializer(CountryFieldMixin, serializers.HyperlinkedModelSerializer):
 
     facial_image = serializers.SerializerMethodField()
@@ -149,7 +148,7 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
     class Meta:
         model = User
         fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image', 'is_liked', 'is_saved', 'friendship_status']
-        read_only = fields
+        read_only_fields = fields
 
     def get_facial_image(self, obj):
         request = self.context.get('request')
@@ -171,20 +170,34 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
 
 
     def get_friendship_status(self, obj):
-
-        if obj.is_friends:
+        if getattr(obj, 'is_friends', False):
             return 'friends'
-        if obj.is_pending_sent:
+        if getattr(obj, 'is_pending_sent', False):
             return 'pending_sent'
-        if obj.is_pending_received:
+        if getattr(obj, 'is_pending_received', False):
             return 'pending_received'
         return None
 
-class MinimalUserProfileSerializer(serializers.ModelSerializer):
+class MinimalUserProfileSerializer(PublicUserProfileSerializer):
     class Meta:
         model = User
-        fields = ['uid', 'name', 'profile_photo']
+        fields = ['uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'facial_image', 'is_liked', 'is_saved', 'friendship_status']
         read_only_fields = fields
+
+    @classmethod
+    def get_unavailable_payload(cls):
+        return {
+            "uid": None,
+            "name": "Unavailable User",
+            "gender": None,
+            "birth_date": None,
+            "country": None,
+            "profile_photo": None,
+            "facial_image": None,
+            "is_liked": False,
+            "is_saved": False,
+            "friendship_status": None,
+        }
 
 class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
     

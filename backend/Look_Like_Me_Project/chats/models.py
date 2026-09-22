@@ -14,6 +14,7 @@ class Conversation(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    updated_at = models.DateTimeField(auto_now=True) # Enables fast chats sorting
 
     def __str__(self):
         return f'Conversation {self.id}'
@@ -38,7 +39,7 @@ class ConversationParticipant(models.Model):
         verbose_name='conversation participant user',
         
     )
-   
+
 
     last_read_at = models.DateTimeField(
         null=True,

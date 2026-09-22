@@ -1,12 +1,11 @@
-from django.shortcuts import render
+from django.db import transaction
 from rest_framework import mixins, viewsets, generics
 from rest_framework import status, permissions, exceptions
-from django.db import IntegrityError
 from rest_framework.response import Response
 from rest_framework.generics import get_object_or_404
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 
-
+from .querysets import annotate_friendship_status
 from .models import MatchInteraction, Friendship,  BlockedUser
 from .serializers import (
     SendFriendshipSerializer, ReceiveFriendshipSerializer,
@@ -20,9 +19,24 @@ from globals.utils import exclude_blocked_users
 class LikesView(MatchInteractionMixin):
     type = 'like'
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Annotate the related receiver User objects
+        user_qs = annotate_friendship_status(
+            User.objects.select_related('image'), self.request.user
+        )
+        return qs.prefetch_related(Prefetch('receiver', queryset=user_qs))
+
 
 class SavesView(MatchInteractionMixin):
     type = 'save'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user_qs = annotate_friendship_status(
+            User.objects.select_related('image'), self.request.user
+        )
+        return qs.prefetch_related(Prefetch('receiver', queryset=user_qs))
 
 
 
@@ -36,7 +50,12 @@ class SenderFriendshipRequestView(FriendshipRequestMixin):
         # Filter requests where the current user is the sender and status is pending
         qs = Friendship.objects.filter(sender=self.request.user, status='pending')
         # Exclude requests sent to users who are now blocked
-        return exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
+        qs = exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
+
+        user_qs = annotate_friendship_status(
+            User.objects.select_related('image'), self.request.user
+        )
+        return qs.prefetch_related(Prefetch('receiver', queryset=user_qs))
 
     def post(self, request, *args, **kwargs):
         return self.perform_create(request, *args, **kwargs)
@@ -55,7 +74,12 @@ class ReceiverFriendshipRequestView(FriendshipRequestMixin):
         # Filter requests where the current user is the sender and status is pending
         qs = Friendship.objects.filter(receiver=self.request.user, status='pending')
         # Exclude incoming requests from blocked senders
-        return exclude_blocked_users(qs, self.request.user, user_field='sender_id')
+        qs = exclude_blocked_users(qs, self.request.user, user_field='sender_id')
+
+        user_qs = annotate_friendship_status(
+            User.objects.select_related('image'), self.request.user
+        )
+        return qs.prefetch_related(Prefetch('sender', queryset=user_qs))
 
     def put(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
@@ -86,9 +110,18 @@ class FriendshipView(
         Q(sender=self.request.user) | Q(receiver=self.request.user),
         status='accepted'
         )
+
         # Filter both sides of accepted friendships
         qs = exclude_blocked_users(qs, self.request.user, user_field='sender_id')
-        return exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
+        qs = exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
+
+        user_qs = annotate_friendship_status(
+            User.objects.select_related('image'), self.request.user
+        )
+        return qs.prefetch_related(
+            Prefetch('sender', queryset=user_qs),
+            Prefetch('receiver', queryset=user_qs),
+        )
 
 
     def get(self, request, *args, **kwargs):
@@ -125,7 +158,7 @@ class BlockedUserView(
 
     def get_queryset(self):
         # Fetch only block records created by the logged-in user (the sender)
-        return BlockedUser.objects.filter(sender=self.request.user).select_related('receiver')
+        return BlockedUser.objects.filter(sender=self.request.user).select_related('receiver', 'receiver__image')
 
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
@@ -135,7 +168,21 @@ class BlockedUserView(
         serializer = self.get_serializer(data=request.data, context={'request': request})
 
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+
+        sender = request.user
+        receiver = serializer.validated_data['receiver']
+
+        with transaction.atomic():
+            serializer.save()
+
+            # Clean up all existing relationships upon block
+            Friendship.objects.filter(
+                Q(sender=sender, receiver=receiver) | Q(sender=receiver, receiver=sender)
+            ).delete()
+
+            MatchInteraction.objects.filter(
+                Q(sender=sender, receiver=receiver) | Q(sender=receiver, receiver=sender)
+            ).delete()
         
         return Response(
             {'detail': "User blocked successfully."},

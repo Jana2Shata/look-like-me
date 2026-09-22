@@ -65,7 +65,9 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 # Application definition
 INSTALLED_APPS = [
-    # Admin site styling (must precede django.contrib.admin)
+    # Must be before django.contrib.staticfiles
+    'daphne',
+    # Admin site styling (must before django.contrib.admin)
     "unfold",
 
     # admin contexts grouping
@@ -88,6 +90,8 @@ INSTALLED_APPS = [
     'django_extensions',
     'rest_framework',
     'django_filters',
+
+    'channels',
 
     # DRF's cross origin resources handling
     'corsheaders',
@@ -163,6 +167,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
 
 # unfold admin configuration options
 # https://unfoldadmin.com/docs/configuration/settings/
@@ -201,6 +206,14 @@ UNFOLD = {
 
     "LOGIN": {
         "image": lambda request: static("images/login-hero.jpg"),
+    },
+}
+
+
+# The Redis channel layer configuration
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
     },
 }
 

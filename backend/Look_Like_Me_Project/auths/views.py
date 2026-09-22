@@ -21,6 +21,7 @@ from .serializers import (
     UserProfileSerializer,
     PublicUserProfileSerializer,)
 from relations.models import Friendship, MatchInteraction
+from relations.querysets import annotate_friendship_status
 from globals.utils import exclude_blocked_users     
 
         
@@ -134,33 +135,15 @@ class PublicUserDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
 
         user = self.request.user
-        # removes blocked users from the set that get_object() will use
-        non_blocked_users_queryset = exclude_blocked_users(
-            User.objects.all(), 
-            user, 
+        non_blocked_users_queryset = exclude_blocked_users(User.objects.all(), user)
+        
+        # Apply the helper function directly
+        qs = annotate_friendship_status(non_blocked_users_queryset, user)
+
+        return qs.select_related('image').prefetch_related(
+            Prefetch(
+                lookup='received_interactions',
+                queryset=MatchInteraction.objects.filter(sender=user),
+            )
         )
 
-        friends_qs = Friendship.objects.filter(
-            Q(sender=OuterRef('pk'), receiver=user) |
-            Q(sender=user, receiver=OuterRef('pk')),
-            status='accepted',
-        )
-        pending_sent_qs = Friendship.objects.filter(
-            sender=user,
-            receiver=OuterRef('pk'),
-            status='pending',
-        )
-        pending_received_qs = Friendship.objects.filter(
-            sender=OuterRef('pk'),
-            receiver=user,
-            status='pending',
-        )
-
-        return non_blocked_users_queryset.select_related('image').annotate(
-            is_friends=Exists(friends_qs),
-            is_pending_sent=Exists(pending_sent_qs),
-            is_pending_received=Exists(pending_received_qs),
-        ).prefetch_related(Prefetch(
-            lookup='received_interactions',
-            queryset=MatchInteraction.objects.filter(sender=user),
-        ))

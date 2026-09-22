@@ -18,6 +18,7 @@ from .services import (
 from .models import Image
 from auths.models import User
 from relations.models import MatchInteraction, Friendship
+from relations.querysets import annotate_friendship_status
 from globals.utils import exclude_blocked_users     
 
 
@@ -175,47 +176,48 @@ class MatchesFeed(APIView):
 
         # filter out blocked users at the database level first
         non_blocked_users = exclude_blocked_users(
-                    User.objects.all(), 
-                    user, 
+            User.objects.all(), 
+            user, 
         )
 
         try:
             _ = user.image
         except Image.DoesNotExist:
             return Response(
-                {"detail": "User has no associated facial image.",
-                 'Search_time': None,
-                 'data': None},
+                {
+                    "detail": "User has no associated facial image.",
+                    'Search_time': None,
+                    'data': None
+                },
                 status=status.HTTP_404_NOT_FOUND
             )
 
         # OuterRef('pk') refers to the *matched* user.
         # `user` (no OuterRef) is the currently authenticated user, fixed for the whole query.
-        friends_qs = Friendship.objects.filter(
-            Q(sender=OuterRef('pk'), receiver=user) |
-            Q(sender=user, receiver=OuterRef('pk')),
-            status='accepted',
-        )
-        pending_sent_qs = Friendship.objects.filter(
-            sender=user,
-            receiver=OuterRef('pk'),
-            status='pending',
-        )
-        pending_received_qs = Friendship.objects.filter(
-            sender=OuterRef('pk'),
-            receiver=user,
-            status='pending',
-        )
+        # friends_qs = Friendship.objects.filter(
+        #     Q(sender=OuterRef('pk'), receiver=user) |
+        #     Q(sender=user, receiver=OuterRef('pk')),
+        #     status='accepted',
+        # )
+        # pending_sent_qs = Friendship.objects.filter(
+        #     sender=user,
+        #     receiver=OuterRef('pk'),
+        #     status='pending',
+        # )
+        # pending_received_qs = Friendship.objects.filter(
+        #     sender=OuterRef('pk'),
+        #     receiver=user,
+        #     status='pending',
+        # )
 
 
         start_time = time.perf_counter()
 
-        images_distances = non_blocked_users.select_related('image' # efficiently fetch the related image objects
+        qs = annotate_friendship_status(non_blocked_users, user)
+
+        images_distances = qs.select_related('image' # efficiently fetch the related image objects
             ).annotate(
                 distance=CosineDistance('image__embedding', user.image.embedding),
-                is_friends=Exists(friends_qs),
-                is_pending_sent=Exists(pending_sent_qs),
-                is_pending_received=Exists(pending_received_qs),
                 # better for performance, for it compiles within the same single query in the DB side, rather than doing separate queries
                     ).filter(distance__lt=self.similarity_threshold).order_by('distance'
                         ).exclude(pk=user.pk)[:self.top_k # Exclude the current user's image and limit to top 5 matches
