@@ -68,7 +68,8 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
             sender=request.user,
             recipient_uid=serializer.validated_data.get('recipient_uid'),
             conversation_uid=serializer.validated_data.get('conversation_uid'),
-            content=serializer.validated_data['content']
+            content=serializer.validated_data['content'],
+            request=request
         )
         
         return Response(

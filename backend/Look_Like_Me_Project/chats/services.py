@@ -34,7 +34,7 @@ class ChatService:
             raise PermissionDenied("You can only message accepted friends.")
 
     @staticmethod
-    def send_message(sender, content, recipient_uid=None, conversation_uid=None):
+    def send_message(sender, content, recipient_uid=None, conversation_uid=None, request=None):
         if not recipient_uid and not conversation_uid:
             raise ValidationError("Either recipient_uid or conversation_uid must be provided.")
 
@@ -69,7 +69,7 @@ class ChatService:
             )
             conversation.save(update_fields=['updated_at'])
 
-            serialized_data = MessageSerializer(message).data
+            serialized_data = MessageSerializer(message, context={'request': request}).data
             conversation_room = f"chat_{conversation.uid}"
 
             # Broadcar deletion event via webSocket
