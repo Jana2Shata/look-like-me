@@ -4,12 +4,12 @@ from auths.serializers import MinimalUserProfileSerializer
 
 
 class MessageSerializer(serializers.ModelSerializer):
-
+    conversation_uid = serializers.UUIDField(source='conversation.uid', read_only=True)
     sender = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ['uid', 'sender', 'content', 'created_at']
+        fields = ['uid', 'conversation_uid', 'sender', 'content', 'created_at']
 
     def get_sender(self, obj):
 
