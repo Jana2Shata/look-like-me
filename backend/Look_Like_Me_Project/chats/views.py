@@ -70,7 +70,7 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
             conversation_uid=serializer.validated_data.get('conversation_uid'),
             content=serializer.validated_data['content']
         )
-        
+
         return Response(
             MessageSerializer(message, context=self.get_serializer_context()).data, 
             status=status.HTTP_201_CREATED
@@ -82,7 +82,7 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
         conversation = self.get_object()
         other_participant = next((p for p in conversation.participants.all() if p.user_id != request.user.id), None)
 
-        queryset = conversation.messages.filter(deleted_at__isnull=True).select_related('sender')
+        queryset = conversation.messages.filter(deleted_at__isnull=True).select_related('sender', 'conversation')
         paginator = MessageCursorPagination()
         page = paginator.paginate_queryset(queryset, request)
 
