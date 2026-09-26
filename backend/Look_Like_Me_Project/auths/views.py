@@ -1,5 +1,6 @@
 # django imports
 from django.contrib.auth import login, logout
+from django.middleware import csrf
 from django.db.models import Q, OuterRef, Exists, Prefetch
 
 # rest_framework imports
@@ -19,7 +20,9 @@ from knox.auth import TokenAuthentication
 from .models import User
 from .serializers import ( 
     UserProfileSerializer,
-    PublicUserProfileSerializer,)
+    PublicUserProfileSerializer,
+    CustomUserDetailsSerializer,
+    )
 from relations.models import Friendship, MatchInteraction
 from relations.querysets import annotate_friendship_status
 from globals.utils import exclude_blocked_users     
@@ -31,7 +34,8 @@ from globals.utils import exclude_blocked_users
 
 class LoginView(LoginView):
     # login view extending KnoxLoginView
-    authentication_classes = [TokenAuthentication]
+    
+    # authentication_classes = [TokenAuthentication]
     permission_classes = [permissions.AllowAny,]
 
     # rate limiting by DRF & dj-rest-auth
@@ -41,8 +45,15 @@ class LoginView(LoginView):
         serializer = LoginSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
-        login(request, user)
-        return super(LoginView, self).post(request, format=format)
+
+        login(request, user) # creates the session, sets sessionid cookie
+        csrf.get_token(request) # refreshes the csrftoken cookie
+
+        # return super(LoginView, self).post(request, format=format) # create the knox token and return the response with the token in the body
+        return Response({
+            'expiry': request.session.get_expiry_date(),
+            'user': CustomUserDetailsSerializer(user).data,
+        })
 
     # def get_post_response_data(self, request, token, instance):
         

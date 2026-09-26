@@ -19,6 +19,20 @@ class CustomAllauthAccountAdapter(DefaultAccountAdapter):
     # .format(uid=self.request.GET.get("uid"), token=key)
 
 
+    # SOURCE: https://stackoverflow.com/questions/75900209/handling-mail-verification-using-dj-rest-auth
+    def get_email_confirmation_url(self, request, emailconfirmation):
+
+        """
+            Changing the confirmation URL to point to the frontend instead of the default allauth backend URL.
+        """
+
+        url = (
+            settings.HEADLESS_FRONTEND_URLS["email_verification"]
+            + emailconfirmation.key
+        )
+        return url
+
+
     # def send_confirmation_mail(self, request, emailconfirmation, signup):
     #     expire_days = getattr(settings, "ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS", 3)
     #     self.send_mail(

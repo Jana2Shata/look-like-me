@@ -304,6 +304,7 @@ FRONTEND_URL = 'https://igloo-uproot-palace.ngrok-free.dev'
 
 HEADLESS_FRONTEND_URLS = {
     "account_reset_password_from_key": FRONTEND_URL +"/reset-password/{uid}/{token}",
+    "email_verification": FRONTEND_URL + "/verify-email/",
     "login": FRONTEND_URL #+ "/login",
 }
 
