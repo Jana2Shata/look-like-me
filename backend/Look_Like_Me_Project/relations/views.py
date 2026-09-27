@@ -14,6 +14,7 @@ from .serializers import (
 from .mixins import MatchInteractionMixin, FriendshipRequestMixin
 from auths.models import User
 from globals.utils import exclude_blocked_users  
+from chats.services import ChatService
 
 
 class LikesView(MatchInteractionMixin):
@@ -142,6 +143,8 @@ class FriendshipView(
         if not deleted_count:
             raise exceptions.NotFound(f"No existing friendship found with this user.")
 
+        ChatService.revoke_chat_access_between_users(request.user, user)
+
         return Response({
             'detail':  f"Friendship cancelled successfully.",
         },
@@ -183,6 +186,10 @@ class BlockedUserView(
             MatchInteraction.objects.filter(
                 Q(sender=sender, receiver=receiver) | Q(sender=receiver, receiver=sender)
             ).delete()
+
+            transaction.on_commit(
+                lambda: ChatService.revoke_chat_access_between_users(sender, receiver)
+            )
         
         return Response(
             {'detail': "User blocked successfully."},

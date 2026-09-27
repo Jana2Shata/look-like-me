@@ -51,30 +51,34 @@ class ConversationListSerializer(serializers.ModelSerializer):
     def get_last_message(self, obj):
 
         messages = getattr(obj, 'prefetched_messages', None)
-        if messages is None:
-            messages = obj.messages.filter(deleted_at__isnull=True).order_by('-created_at')[:1]
+        if messages is not None:
+            return MessageSerializer(messages[0], context=self.context).data if messages else None
         
-        latest = messages[0] if messages else None
+        # Fallback if accessed outside ConversationViewSet
+        latest = obj.messages.filter(deleted_at__isnull=True).order_by('-created_at').first()
         return MessageSerializer(latest, context=self.context).data if latest else None
-
+    
     def get_unread_count(self, obj):
-            
-            request = self.context.get('request')
-            if not request:
-                return 0
-            
-            user = request.user
-            user_participant = next((p for p in obj.participants.all() if p.user_id == user.id), None)
+        if hasattr(obj, 'unread_count'):
+            return obj.unread_count
 
-            if not user_participant:
-                return 0
-            
-            qs = obj.messages.filter(deleted_at__isnull=True).exclude(sender_id=user.id)
+        # Fallback if accessed outside ConversationViewSet
+        request = self.context.get('request')
+        if not request or not request.user or not request.user.is_authenticated:
+            return 0
+        
+        user = request.user
+        user_participant = next((p for p in obj.participants.all() if p.user_id == user.id), None)
 
-            if user_participant.last_read_at:
-                qs = qs.filter(created_at__gt=user_participant.last_read_at)
+        if not user_participant:
+            return 0
+        
+        qs = obj.messages.filter(deleted_at__isnull=True).exclude(sender_id=user.id)
 
-            return qs.count()
+        if user_participant.last_read_at:
+            qs = qs.filter(created_at__gt=user_participant.last_read_at)
+
+        return qs.count()
 
 class SendMessageSerializer(serializers.Serializer):
 

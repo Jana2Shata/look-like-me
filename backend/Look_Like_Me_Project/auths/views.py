@@ -25,7 +25,8 @@ from .serializers import (
     )
 from relations.models import Friendship, MatchInteraction
 from relations.querysets import annotate_friendship_status
-from globals.utils import exclude_blocked_users     
+from globals.utils import exclude_blocked_users
+from chats.services import ChatService     
 
         
 
@@ -74,11 +75,15 @@ class LogoutView(LogoutView):
 
     def post(self, request, format=None):
         # Override the post method to handle comprehensive logout
+        user = request.user
         response = None
         if request._auth is not None:
             response = super().post(request, format=None)  # Knox deletes the json token
         
         logout(request)                                  # django deletes the session cookie
+
+        if user and user.is_authenticated:
+            ChatService.revoke_all_user_sockets(user)
 
         if not response:
             response = self.get_post_response(request)
@@ -96,11 +101,15 @@ class LogoutAllView(LogoutAllView):
 
     def post(self, request, format=None):
         # Override the post method to handle comprehensive logout
+        user = request.user
         response = None
         if request._auth is not None:
             response = super().post(request, format=None)  # Knox deletes the json token
         
         logout(request)                                  # django deletes the session cookie
+
+        if user and user.is_authenticated:
+            ChatService.revoke_all_user_sockets(user)
 
         if not response:
             response = self.get_post_response(request)
