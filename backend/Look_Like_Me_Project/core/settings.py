@@ -50,6 +50,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://localhost:8001',
     'https://onshore-quotable-antelope.ngrok-free.dev',
+    'https://igloo-uproot-palace.ngrok-free.dev',
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -57,6 +58,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:8000',
     'http://localhost:8001',
     'https://onshore-quotable-antelope.ngrok-free.dev',
+    'https://igloo-uproot-palace.ngrok-free.dev',
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -137,7 +139,7 @@ MIDDLEWARE = [
 
         # "CORS handling middleware should be placed as high as possible,
         # especially before any middleware that can generate responses.""
-        'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
