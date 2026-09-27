@@ -9,6 +9,7 @@ from relations.models import Friendship
 from .models import Conversation, ConversationParticipant, Message
 
 from asgiref.sync import async_to_sync
+from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from .serializers import MessageSerializer
 
@@ -34,11 +35,40 @@ class ChatService:
             raise PermissionDenied("You can only message accepted friends.")
 
     @staticmethod
+    @database_sync_to_async
+    def validate_consumer_access(user, conversation_uid):
+
+        if not user or not user.is_authenticated:
+            return False
+
+        try:
+            conversation = Conversation.objects.filter(
+                participants__user=user,
+                uid=conversation_uid
+            ).first()
+
+            if not conversation:
+                return False
+
+            other_participant = conversation.participants.exclude(user=user).select_related('user').first()
+            if not other_participant:
+                return False
+
+            ChatService.validate_can_chat(user, other_participant.user)
+            return True
+
+        except (ValidationError, PermissionDenied):
+            return False
+        except Exception:
+            return False
+
+    @staticmethod
     def send_message(sender, content, recipient_uid=None, conversation_uid=None, request=None):
         if not recipient_uid and not conversation_uid:
             raise ValidationError("Either recipient_uid or conversation_uid must be provided.")
 
         with transaction.atomic():
+
             if conversation_uid:
                 conversation = get_object_or_404(
                     Conversation.objects.filter(participants__user=sender),
@@ -51,6 +81,9 @@ class ChatService:
                 recipient = get_object_or_404(User, uid=recipient_uid)
                 ChatService.validate_can_chat(sender, recipient)
 
+                first_id, second_id = sorted([sender.id, recipient.id])
+                list(User.objects.select_for_update().filter(id__in=[first_id, second_id]).order_by('id'))
+
                 conversation = Conversation.objects.filter(
                     participants__user=sender
                 ).filter(
@@ -59,8 +92,10 @@ class ChatService:
 
                 if not conversation:
                     conversation = Conversation.objects.create()
-                    ConversationParticipant.objects.create(conversation=conversation, user=sender)
-                    ConversationParticipant.objects.create(conversation=conversation, user=recipient)
+                    ConversationParticipant.objects.bulk_create([
+                        ConversationParticipant(conversation=conversation, user=sender),
+                        ConversationParticipant(conversation=conversation, user=recipient),
+                    ])
 
             message = Message.objects.create(
                 conversation=conversation,
@@ -111,3 +146,39 @@ class ChatService:
         )
 
         return message
+
+    @staticmethod
+    def revoke_chat_access_between_users(user_a, user_b):
+
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+
+        conversation = Conversation.objects.filter(
+            participants__user=user_a
+        ).filter(
+            participants__user=user_b
+        ).first()
+
+        if conversation:
+            async_to_sync(channel_layer.group_send)(
+                f"chat_{conversation.uid}",
+                {
+                    "type": "access_revoked",
+                    "user_uids": [str(user_a.uid), str(user_b.uid)],
+                }
+            )
+
+    @staticmethod
+    def revoke_all_user_sockets(user):
+
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+
+        async_to_sync(channel_layer.group_send)(
+            f"user_{user.uid}",
+            {
+                "type": "user_logout",
+            }
+        )
