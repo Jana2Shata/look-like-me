@@ -28,7 +28,9 @@ class MatchInteractionMixin(
         # Filter interactions where the current user is the sender and type is what the subclass specified
         qs = MatchInteraction.objects.filter(sender=self.request.user, type=self.type)
         # Exclude blocked receivers from your likes/saves lists
-        return exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
+        qs = exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
+
+        return qs.order_by('-created_at', 'id')
 
 
     def get(self, request, *args, **kwargs):

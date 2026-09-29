@@ -38,7 +38,7 @@ class MatchesFeedSerializer(Serializer):
         # model = Image
         fields = ['user', 'similarity_score', 
                 #   'is_liked', 'is_saved', 'friendship_status'
-                  ]
+                ]
         read_only = fields
 
     def get_similarity_score(self, obj): # Mapped by name

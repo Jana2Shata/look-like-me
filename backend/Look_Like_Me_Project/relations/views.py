@@ -5,7 +5,8 @@ from rest_framework.response import Response
 from rest_framework.generics import get_object_or_404
 from django.db.models import Prefetch, Q
 
-from .querysets import annotate_friendship_status
+from .querysets import annotate_friendship_status, annotate_user_interactions 
+from matches.querysets import annotate_similarity_score
 from .models import MatchInteraction, Friendship,  BlockedUser
 from .serializers import (
     SendFriendshipSerializer, ReceiveFriendshipSerializer,
@@ -21,11 +22,14 @@ class LikesView(MatchInteractionMixin):
     type = 'like'
 
     def get_queryset(self):
+        user = self.request.user
         qs = super().get_queryset()
         # Annotate the related receiver User objects
         user_qs = annotate_friendship_status(
             User.objects.select_related('image'), self.request.user
         )
+        user_qs = annotate_similarity_score(user_qs, user)
+        user_qs = annotate_user_interactions(user_qs, user)
         return qs.prefetch_related(Prefetch('receiver', queryset=user_qs))
 
 
@@ -33,10 +37,13 @@ class SavesView(MatchInteractionMixin):
     type = 'save'
 
     def get_queryset(self):
+        user = self.request.user
         qs = super().get_queryset()
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), self.request.user
+            User.objects.select_related('image'), user
         )
+        user_qs = annotate_similarity_score(user_qs, user)
+        user_qs = annotate_user_interactions(user_qs, user)
         return qs.prefetch_related(Prefetch('receiver', queryset=user_qs))
 
 
@@ -48,15 +55,19 @@ class SenderFriendshipRequestView(FriendshipRequestMixin):
     lookup_url_kwarg = 'receiver'        # matches the URL capture group name
 
     def get_queryset(self):
+        user = self.request.user
         # Filter requests where the current user is the sender and status is pending
-        qs = Friendship.objects.filter(sender=self.request.user, status='pending')
+        qs = Friendship.objects.filter(sender=user, status='pending')
         # Exclude requests sent to users who are now blocked
-        qs = exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
+        qs = exclude_blocked_users(qs, user, user_field='receiver_id')
 
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), self.request.user
+            User.objects.select_related('image'), user
         )
-        return qs.prefetch_related(Prefetch('receiver', queryset=user_qs))
+        user_qs = annotate_similarity_score(user_qs, user)
+        user_qs = annotate_user_interactions(user_qs, user)
+
+        return qs.prefetch_related(Prefetch('receiver', queryset=user_qs)).order_by('-created_at', 'id')
 
     def post(self, request, *args, **kwargs):
         return self.perform_create(request, *args, **kwargs)
@@ -72,15 +83,19 @@ class ReceiverFriendshipRequestView(FriendshipRequestMixin):
     lookup_url_kwarg = 'sender'        # matches the URL capture group name
 
     def get_queryset(self):
+        user = self.request.user
         # Filter requests where the current user is the sender and status is pending
-        qs = Friendship.objects.filter(receiver=self.request.user, status='pending')
+        qs = Friendship.objects.filter(receiver= user, status='pending')
         # Exclude incoming requests from blocked senders
-        qs = exclude_blocked_users(qs, self.request.user, user_field='sender_id')
+        qs = exclude_blocked_users(qs, user, user_field='sender_id')
 
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), self.request.user
+            User.objects.select_related('image'), user
         )
-        return qs.prefetch_related(Prefetch('sender', queryset=user_qs))
+        user_qs = annotate_similarity_score(user_qs, user)
+        user_qs = annotate_user_interactions(user_qs, user)
+
+        return qs.prefetch_related(Prefetch('sender', queryset=user_qs)).order_by('-created_at', 'id')
 
     def put(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
@@ -104,25 +119,29 @@ class FriendshipView(
         
 
     def get_queryset(self):
+        user = self.request.user
         # Filter friendships where the current user is either the sender or the receiver, and status is 'accepted'
         qs = Friendship.objects.filter(
         # Q allows for more complex DB queries (beyond mere AND)
         # The pipe | performs OR, while simple comma , translates as AND
-        Q(sender=self.request.user) | Q(receiver=self.request.user),
+        Q(sender=user) | Q(receiver=user),
         status='accepted'
         )
 
         # Filter both sides of accepted friendships
-        qs = exclude_blocked_users(qs, self.request.user, user_field='sender_id')
-        qs = exclude_blocked_users(qs, self.request.user, user_field='receiver_id')
+        qs = exclude_blocked_users(qs, user, user_field='sender_id')
+        qs = exclude_blocked_users(qs, user, user_field='receiver_id')
 
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), self.request.user
+            User.objects.select_related('image'), user
         )
+        user_qs = annotate_similarity_score(user_qs, user)
+        user_qs = annotate_user_interactions(user_qs, user)
+
         return qs.prefetch_related(
             Prefetch('sender', queryset=user_qs),
             Prefetch('receiver', queryset=user_qs),
-        )
+        ).order_by('-created_at', 'id')
 
 
     def get(self, request, *args, **kwargs):
@@ -160,8 +179,16 @@ class BlockedUserView(
     serializer_class = BlockedUserSerializer
 
     def get_queryset(self):
+
+        user = self.request.user
+
+        receiver_qs = User.objects.select_related('image')
+        receiver_qs = annotate_similarity_score(receiver_qs, user)
+
         # Fetch only block records created by the logged-in user (the sender)
-        return BlockedUser.objects.filter(sender=self.request.user).select_related('receiver', 'receiver__image')
+        return BlockedUser.objects.filter(sender=user).prefetch_related(
+            Prefetch('receiver', queryset=receiver_qs)
+        ).order_by('-created_at', 'id')
 
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
