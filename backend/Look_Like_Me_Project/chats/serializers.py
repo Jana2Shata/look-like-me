@@ -16,9 +16,9 @@ class MessageSerializer(serializers.ModelSerializer):
         blocked_user_ids = self.context.get('blocked_user_ids', set())
 
         if obj.sender_id in blocked_user_ids:
-            return MinimalUserProfileSerializer.get_unavailable_payload()
+            return MinimalUserProfileSerializer.get_unavailable_payload(compact=True)
         
-        return MinimalUserProfileSerializer(obj.sender, context=self.context).data
+        return MinimalUserProfileSerializer(obj.sender, context={**self.context, 'compact': True}).data
     
 
 class ConversationListSerializer(serializers.ModelSerializer):
@@ -44,9 +44,9 @@ class ConversationListSerializer(serializers.ModelSerializer):
         blocked_user_ids = self.context.get('blocked_user_ids', set())
 
         if participant.user_id in blocked_user_ids:
-            return MinimalUserProfileSerializer.get_unavailable_payload()
+            return MinimalUserProfileSerializer.get_unavailable_payload(compact=True)
         
-        return MinimalUserProfileSerializer(participant.user, context=self.context).data
+        return MinimalUserProfileSerializer(participant.user, context={**self.context, 'compact': True}).data
     
     def get_last_message(self, obj):
 

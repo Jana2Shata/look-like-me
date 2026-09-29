@@ -1,6 +1,7 @@
 
 from django.db.models import Q, OuterRef, Exists
-from relations.models import Friendship
+from .models import Friendship
+from .models import MatchInteraction
 
 def annotate_friendship_status(queryset, user):
 
@@ -29,4 +30,16 @@ def annotate_friendship_status(queryset, user):
         is_friends=Exists(friends_qs),
         is_pending_sent=Exists(pending_sent_qs),
         is_pending_received=Exists(pending_received_qs),
+    )
+
+def annotate_user_interactions(queryset, user):
+
+    user_interactions = MatchInteraction.objects.filter(
+        sender=user,
+        receiver=OuterRef('pk')
+    )
+    
+    return queryset.annotate(
+        is_liked=Exists(user_interactions.filter(type='like')),
+        is_saved=Exists(user_interactions.filter(type='save'))
     )

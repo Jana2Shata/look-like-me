@@ -1,15 +1,15 @@
 from urllib.parse import parse_qs
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
-from channels.db import database_sync_to_async
-from .models import Conversation
 from .services import ChatService   
-from globals.utils import exclude_blocked_users
-
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def connect(self):
         self.user = self.scope.get('user')
+        
+        # store session_key on connect
+        session = self.scope.get('session')
+        self.session_key = session.session_key if session else None
 
         if not self.user or self.user.is_anonymous:
             await self.close(code=4001)
@@ -29,9 +29,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         self.conversation_uid = self.scope['url_route']['kwargs']['conversation_uid']
         self.room_group_name = f'chat_{self.conversation_uid}'
 
-        is_participant = await self.verify_participant()
-        if not is_participant:
-            await self.close(code=4003)
+        can_access, close_code = await ChatService.validate_consumer_access(
+            self.user, 
+            self.conversation_uid, 
+            session_key=self.session_key
+        )
+        if not can_access:
+            await self.close(code=close_code)
             return
 
         await self.channel_layer.group_add(
@@ -76,9 +80,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         if action == 'typing':
 
-            is_valid_room = await self.verify_participant()
-            if not is_valid_room:
-                await self.close(code=4003)
+            can_access, close_code = await ChatService.validate_consumer_access(
+                self.user,
+                self.conversation_uid,
+                session_key=self.session_key
+            )
+            if not can_access:
+                await self.close(code=close_code)
                 return
 
             await self.channel_layer.group_send(
@@ -92,10 +100,14 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def chat_message_event(self, event):
 
-        can_access = await ChatService.validate_consumer_access(self.user, self.conversation_uid)
+        can_access, code = await ChatService.validate_consumer_access(
+            self.user, 
+            self.conversation_uid,
+            session_key=self.session_key
+        )
         
         if not can_access:
-            await self.close(code=4003)
+            await self.close(code=code)
             return
         
         await self.send_json({
@@ -104,6 +116,17 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         })
 
     async def message_deleted_event(self, event):
+
+        can_access, code = await ChatService.validate_consumer_access(
+            self.user, 
+            self.conversation_uid,
+            session_key=self.session_key
+        )
+        
+        if not can_access:
+            await self.close(code=code)
+            return
+        
         await self.send_json({
             'action': 'message_deleted',
             'message_uid': event['message_uid']
@@ -116,18 +139,3 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 'sender_uid': event['sender_uid'],
                 'is_typing': event['is_typing']
             })
-
-    @database_sync_to_async
-    def verify_participant(self):
-        qs = Conversation.objects.filter(
-            uid=self.conversation_uid,
-            participants__user=self.user
-        )
-
-        qs = exclude_blocked_users(
-            qs,
-            user=self.user,
-            user_field='participants__user__id'
-        )
-
-        return qs.exists()

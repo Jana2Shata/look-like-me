@@ -13,6 +13,7 @@ from django_countries.serializer_fields import CountryField
 from django_countries.serializers import CountryFieldMixin
 
 from .models import User
+from relations.models import MatchInteraction
 from .validators import validate_password
 from django.conf import settings
 
@@ -145,9 +146,11 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
 
     friendship_status = serializers.SerializerMethodField()
 
+    similarity_score = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image', 'is_liked', 'is_saved', 'friendship_status']
+        fields = ['url', 'uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image', 'is_liked', 'is_saved', 'friendship_status', 'similarity_score']
         read_only_fields = fields
 
     def get_facial_image(self, obj):
@@ -157,17 +160,24 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
         image = getattr(obj, 'image', None)
         return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
 
-
-    
     def get_is_liked(self, obj):
-
-        return any(i.type == 'like' for i in obj.received_interactions.all())
-
+        
+        if hasattr(obj, 'is_liked'):
+            return obj.is_liked
+            
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return MatchInteraction.objects.filter(sender=request.user, receiver=obj, type='like').exists()
 
     def get_is_saved(self, obj):
-        
-        return any(i.type == 'save' for i in obj.received_interactions.all())
-
+        if hasattr(obj, 'is_saved'):
+            return obj.is_saved
+            
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return MatchInteraction.objects.filter(sender=request.user, receiver=obj, type='save').exists()
 
     def get_friendship_status(self, obj):
         if getattr(obj, 'is_friends', False):
@@ -178,15 +188,31 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
             return 'pending_received'
         return None
 
+    def get_similarity_score(self, obj):
+
+        distance = getattr(obj, 'distance', None)
+        if distance is not None:
+            return round(1.0 - float(distance), 4)
+        return None
+
 class MinimalUserProfileSerializer(PublicUserProfileSerializer):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.context.get('compact', False):
+            excluded_fields = {'is_liked', 'is_saved', 'friendship_status'}
+            for field_name in excluded_fields:
+                self.fields.pop(field_name, None)
+
     class Meta:
         model = User
-        fields = ['uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'facial_image', 'is_liked', 'is_saved', 'friendship_status']
+        fields = ['uid', 'name', 'gender', 'birth_date', 'country', 'profile_photo', 'facial_image', 'is_liked', 'is_saved', 'friendship_status', 'similarity_score']
         read_only_fields = fields
 
     @classmethod
-    def get_unavailable_payload(cls):
-        return {
+    def get_unavailable_payload(cls, compact=False):
+        payload = {
             "uid": None,
             "name": "Unavailable User",
             "gender": None,
@@ -194,10 +220,17 @@ class MinimalUserProfileSerializer(PublicUserProfileSerializer):
             "country": None,
             "profile_photo": None,
             "facial_image": None,
-            "is_liked": False,
-            "is_saved": False,
-            "friendship_status": None,
+            "similarity_score": None,
         }
+
+        if not compact:
+            payload.update({
+                "is_liked": False,
+                "is_saved": False,
+                "friendship_status": None,
+            })
+
+        return payload
 
 class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
     

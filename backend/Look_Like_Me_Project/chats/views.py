@@ -7,17 +7,20 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied, ValidationError, NotFound
 
 from .models import Conversation, ConversationParticipant, Message
+from auths.models import User
 from .serializers import ConversationListSerializer, MessageSerializer, SendMessageSerializer
 from auths.serializers import MinimalUserProfileSerializer 
 from .services import ChatService
+from matches.querysets import annotate_similarity_score
 from globals.utils import get_blocked_user_ids
 
 class MessageCursorPagination(CursorPagination):
 
     page_size = 25
-    ordering = '-created_at'
+    ordering = ('-created_at', 'id')
 
 
 class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -38,6 +41,8 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
 
         user = self.request.user
 
+        users_qs = annotate_similarity_score(User.objects.all(), user)
+
         epoch = timezone.make_aware(datetime(1970, 1, 1))
 
         latest_message_id_subquery = Subquery(
@@ -50,7 +55,9 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
         latest_messages_qs = Message.objects.filter(
             deleted_at__isnull=True,
             id__in=latest_message_id_subquery
-        ).select_related('sender')
+        ).prefetch_related(
+            Prefetch('sender', queryset=users_qs)
+        )
 
         latest_message_prefetch = Prefetch(
             'messages',
@@ -76,15 +83,18 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
             output_field=IntegerField()
         )
 
+        participant_qs = ConversationParticipant.objects.prefetch_related(
+            Prefetch('user', queryset=users_qs)
+        )
+
         qs = Conversation.objects.filter(
             participants__user=user
         ).annotate(
             unread_count=Coalesce(unread_count_subquery, Value(0))
         ).prefetch_related(
-            Prefetch('participants', queryset=ConversationParticipant.objects.select_related('user')),
+            Prefetch('participants', queryset=participant_qs),
             latest_message_prefetch
-        ).distinct().order_by('-updated_at')
-
+        ).distinct().order_by('-updated_at', 'id')
 
         search = self.request.query_params.get('search')
         if search:
@@ -94,6 +104,30 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         return qs.distinct()
+
+    @action(detail=False, methods=['get'], url_path=r'direct/(?P<user_uid>[^/.]+)')
+    def direct_lookup(self, request, user_uid=None):
+
+        if str(request.user.uid) == str(user_uid):
+            raise ValidationError({"detail": "You cannot look up a conversation with yourself"})
+
+        target_user = get_object_or_404(User, uid=user_uid)
+
+        blocked_user_ids = get_blocked_user_ids(request.user)
+        if target_user.id in blocked_user_ids:
+            raise PermissionDenied("Cannot interact with this user")
+
+        conversation = (
+            self.get_queryset()
+            .filter(participants__user=target_user)
+            .first()
+        )
+
+        if not conversation:
+            raise NotFound({"detail": "No conversation exists with this user yet"})
+
+        serializer = self.get_serializer(conversation)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='send')
     def send_message(self, request):
@@ -118,9 +152,19 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
     def messages(self, request, uid=None):
 
         conversation = self.get_object()
+
+        users_qs = annotate_similarity_score(User.objects.all(), request.user)
+
         other_participant = next((p for p in conversation.participants.all() if p.user_id != request.user.id), None)
 
-        queryset = conversation.messages.filter(deleted_at__isnull=True).select_related('sender', 'conversation')
+        queryset = (
+            conversation.messages
+            .filter(deleted_at__isnull=True)
+            .prefetch_related(Prefetch('sender', queryset=users_qs))
+            .select_related('conversation')
+            .order_by('-created_at', 'id')
+        )
+
         paginator = MessageCursorPagination()
         page = paginator.paginate_queryset(queryset, request)
 
@@ -136,10 +180,10 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
             blocked_user_ids = serializer_context.get('blocked_user_ids', set())
 
             if other_participant.user_id in blocked_user_ids:
-                response.data['other_participant'] = MinimalUserProfileSerializer.get_unavailable_payload()
+                response.data['other_participant'] = MinimalUserProfileSerializer.get_unavailable_payload(compact=True)
             else:
                 response.data['other_participant'] = MinimalUserProfileSerializer(
-                    other_participant.user, context=serializer_context
+                    other_participant.user, context={**serializer_context, 'compact': True}
                 ).data
         else:
             response.data['other_participant'] = None

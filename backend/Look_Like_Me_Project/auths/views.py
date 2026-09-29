@@ -24,7 +24,8 @@ from .serializers import (
     CustomUserDetailsSerializer,
     )
 from relations.models import Friendship, MatchInteraction
-from relations.querysets import annotate_friendship_status
+from matches.querysets import annotate_similarity_score
+from relations.querysets import annotate_friendship_status, annotate_user_interactions
 from globals.utils import exclude_blocked_users
 from chats.services import ChatService     
 
@@ -147,23 +148,19 @@ class DeleteUserView(generics.DestroyAPIView):
 
 
 class PublicUserDetailView(generics.RetrieveAPIView):
-    queryset = User.objects.all()
+    
     serializer_class = PublicUserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
-    lookup_field='uid'
+    lookup_field = 'uid'
 
     def get_queryset(self):
-
         user = self.request.user
-        non_blocked_users_queryset = exclude_blocked_users(User.objects.all(), user)
-        
-        # Apply the helper function directly
-        qs = annotate_friendship_status(non_blocked_users_queryset, user)
 
-        return qs.select_related('image').prefetch_related(
-            Prefetch(
-                lookup='received_interactions',
-                queryset=MatchInteraction.objects.filter(sender=user),
-            )
-        )
+        qs = exclude_blocked_users(User.objects.all(), user)
+        
+        qs = annotate_friendship_status(qs, user)
+        qs = annotate_similarity_score(qs, user)
+        qs = annotate_user_interactions(qs, user)
+
+        return qs.select_related('image')
 
