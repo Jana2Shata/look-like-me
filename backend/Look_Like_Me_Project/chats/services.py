@@ -4,14 +4,16 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from auths.models import User
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from globals.utils import exclude_blocked_users 
-from relations.models import Friendship
+from relations.models import Friendship, BlockedUser
 from .models import Conversation, ConversationParticipant, Message
 
 from asgiref.sync import async_to_sync
 from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from .serializers import MessageSerializer
+
+from django.utils import timezone
+from django.contrib.sessions.models import Session
 
 class ChatService:
 
@@ -20,13 +22,11 @@ class ChatService:
         if sender.id == receiver.id:
             raise ValidationError("You cannot message yourself.")
 
-        is_accessible = exclude_blocked_users(
-            User.objects.filter(id=receiver.id),
-            user=sender,
-            user_field='id'
+        is_blocked = BlockedUser.objects.filter(
+            Q(sender=sender, receiver=receiver) | Q(sender=receiver, receiver=sender)
         ).exists()
 
-        if not is_accessible:
+        if is_blocked:
             raise PermissionDenied("Messaging is unavailable between these users.")
 
         if not Friendship.objects.filter(status=Friendship.StatusChoices.ACCEPTED).filter(
@@ -36,10 +36,21 @@ class ChatService:
 
     @staticmethod
     @database_sync_to_async
-    def validate_consumer_access(user, conversation_uid):
+    def validate_consumer_access(user, conversation_uid, session_key=None):
 
-        if not user or not user.is_authenticated:
-            return False
+        if not user or not user.is_authenticated or not user.is_active:
+            return False, 4001
+
+        if not session_key:
+            return False, 4001
+
+        is_session_valid = Session.objects.filter(
+            session_key=session_key,
+            expire_date__gt=timezone.now()
+        ).exists()
+
+        if not is_session_valid:
+            return False, 4001
 
         try:
             conversation = Conversation.objects.filter(
@@ -48,19 +59,19 @@ class ChatService:
             ).first()
 
             if not conversation:
-                return False
+                return False, 4003
 
             other_participant = conversation.participants.exclude(user=user).select_related('user').first()
             if not other_participant:
-                return False
+                return False, 4003
 
             ChatService.validate_can_chat(user, other_participant.user)
-            return True
+            return True, None
 
         except (ValidationError, PermissionDenied):
-            return False
+            return False, 4003
         except Exception:
-            return False
+            return False, 4003
 
     @staticmethod
     def send_message(sender, content, recipient_uid=None, conversation_uid=None, request=None):
