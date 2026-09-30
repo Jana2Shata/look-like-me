@@ -11,7 +11,8 @@ from rest_framework.settings import api_settings
 from .models import Friendship, MatchInteraction, BlockedUser
 from auths.models import User
 from auths.serializers import MinimalUserProfileSerializer
-from globals.utils import NonBlockedUserSlugField    
+from globals.utils import NonBlockedUserSlugField  
+from preferences.services import filter_privacy_visible_users
 
 """
     Saves/likes are created/deleted only, not updated.
@@ -40,6 +41,34 @@ class MatchInteractionSerializer(ModelSerializer):
                 message= f"This action has already been performed"
             )
         ]
+
+    def validate_receiver(self, receiver):
+
+        user = self.context['request'].user
+
+        if receiver.id == user.id:
+            interaction_type = self.initial_data.get('type')
+
+            if interaction_type == MatchInteraction.TypeChoices.LIKE:
+                raise ValidationError("You cannot like your own profile.")
+
+            if interaction_type == MatchInteraction.TypeChoices.SAVE:
+                raise ValidationError("You cannot save your own profile.")
+
+            raise ValidationError("You cannot interact with your own profile.")
+
+        visible_users = filter_privacy_visible_users(
+            User.objects.all(),
+            user
+        )
+
+        if not visible_users.filter(id=receiver.id).exists():
+            raise ValidationError(
+                "This user profile is private or unavailable."
+            )
+
+        return receiver
+
 
     
     # replace string uid with full nested receiver profile data

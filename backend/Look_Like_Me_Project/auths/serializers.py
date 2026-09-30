@@ -11,11 +11,13 @@ from allauth.account.adapter import get_adapter
 from allauth.account.utils import user_pk_to_url_str
 from django_countries.serializer_fields import CountryField
 from django_countries.serializers import CountryFieldMixin
+from django.db import transaction
 
 from .models import User
 from relations.models import MatchInteraction
 from .validators import validate_password
 from django.conf import settings
+from preferences.models import PrivacyPreference
 
 # from matches.serializers import ImageSerializer
 
@@ -88,14 +90,17 @@ class CustomRegisterSerializer(RegisterSerializer):
         user.birth_date = self.cleaned_data.get('birth_date')
         user.country = self.cleaned_data.get('country')
 
-        user.save()
-
-        # # Create profile with extra fields
+        # Create profile with extra fields
         # user.profile.phone_number = self.cleaned_data.get('phone_number')
         # user.profile.company = self.cleaned_data.get('company')
         # user.profile.save()
 
         # self.custom_signup(request, user)
+
+        user.save()
+
+        PrivacyPreference.objects.create(user=user)
+
         return user
     
 
@@ -155,10 +160,38 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
 
     def get_facial_image(self, obj):
         request = self.context.get('request')
-        # if # TODO: preferences check
-        #     return None
         image = getattr(obj, 'image', None)
-        return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
+
+        if not image or not image.facial_image:
+            return None
+
+        if not request or not request.user.is_authenticated:
+            return None
+
+        viewer = request.user
+
+        if viewer.id == obj.id:
+            return request.build_absolute_uri(image.facial_image.url)
+
+        preference = getattr(obj, 'privacy_preferences', None)
+        visibility = (
+            preference.match_visibility 
+            if preference 
+            else PrivacyPreference.MatchVisibility.EVERYONE
+        )
+
+        # privacy Checks
+        if visibility == PrivacyPreference.MatchVisibility.ME_ONLY:
+            return None
+
+        if visibility == PrivacyPreference.MatchVisibility.FRIENDS_ONLY:
+            # leverage existing annotation from annotate_friendship_status
+            is_friends = getattr(obj, 'is_friends', False)
+            if not is_friends:
+                return None
+
+        # return image URL for EVERYONE or passed FRIENDS_ONLY check
+        return request.build_absolute_uri(image.facial_image.url)
 
     def get_is_liked(self, obj):
         

@@ -26,7 +26,7 @@ class LikesView(MatchInteractionMixin):
         qs = super().get_queryset()
         # Annotate the related receiver User objects
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), self.request.user
+            User.objects.select_related('image', 'privacy_preferences'), user
         )
         user_qs = annotate_similarity_score(user_qs, user)
         user_qs = annotate_user_interactions(user_qs, user)
@@ -40,7 +40,7 @@ class SavesView(MatchInteractionMixin):
         user = self.request.user
         qs = super().get_queryset()
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), user
+            User.objects.select_related('image', 'privacy_preferences'), user
         )
         user_qs = annotate_similarity_score(user_qs, user)
         user_qs = annotate_user_interactions(user_qs, user)
@@ -62,7 +62,7 @@ class SenderFriendshipRequestView(FriendshipRequestMixin):
         qs = exclude_blocked_users(qs, user, user_field='receiver_id')
 
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), user
+            User.objects.select_related('image', 'privacy_preferences'), user
         )
         user_qs = annotate_similarity_score(user_qs, user)
         user_qs = annotate_user_interactions(user_qs, user)
@@ -90,7 +90,7 @@ class ReceiverFriendshipRequestView(FriendshipRequestMixin):
         qs = exclude_blocked_users(qs, user, user_field='sender_id')
 
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), user
+            User.objects.select_related('image', 'privacy_preferences'), user
         )
         user_qs = annotate_similarity_score(user_qs, user)
         user_qs = annotate_user_interactions(user_qs, user)
@@ -133,7 +133,7 @@ class FriendshipView(
         qs = exclude_blocked_users(qs, user, user_field='receiver_id')
 
         user_qs = annotate_friendship_status(
-            User.objects.select_related('image'), user
+            User.objects.select_related('image', 'privacy_preferences'), user
         )
         user_qs = annotate_similarity_score(user_qs, user)
         user_qs = annotate_user_interactions(user_qs, user)
@@ -182,7 +182,8 @@ class BlockedUserView(
 
         user = self.request.user
 
-        receiver_qs = User.objects.select_related('image')
+        receiver_qs = User.objects.select_related('image', 'privacy_preferences')
+        receiver_qs = annotate_friendship_status(receiver_qs, user)
         receiver_qs = annotate_similarity_score(receiver_qs, user)
 
         # Fetch only block records created by the logged-in user (the sender)
