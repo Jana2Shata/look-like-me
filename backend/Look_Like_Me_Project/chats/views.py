@@ -160,7 +160,7 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
         users_qs = User.objects.select_related('image', 'privacy_preferences')
 
         users_qs = annotate_similarity_score(users_qs, request.user)
-        users_qs = annotate_friendship_status(users_qs, user)
+        users_qs = annotate_friendship_status(users_qs, request.user)
 
         other_participant = next((p for p in conversation.participants.all() if p.user_id != request.user.id), None)
 
