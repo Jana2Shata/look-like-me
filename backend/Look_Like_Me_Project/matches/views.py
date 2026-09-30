@@ -21,6 +21,7 @@ from .services import (
 from .models import Image
 from auths.models import User
 from relations.models import MatchInteraction, Friendship
+from preferences.services import filter_privacy_visible_users
 from .querysets import annotate_similarity_score
 from relations.querysets import annotate_friendship_status, annotate_user_interactions
 from globals.utils import exclude_blocked_users     
@@ -178,10 +179,18 @@ class MatchesFeed(APIView):
 
         user = request.user
 
-        # filter out blocked users at the database level first
-        non_blocked_users = exclude_blocked_users(
-            User.objects.all(), 
+        user_qs = User.objects.select_related('image', 'privacy_preferences')
+
+        # filter out blocked users
+        visible_users = exclude_blocked_users(
+            user_qs, 
             user, 
+        )
+
+        # filter out private non-friends
+        visible_users = filter_privacy_visible_users(
+            visible_users, 
+            user
         )
 
         try:
@@ -198,7 +207,7 @@ class MatchesFeed(APIView):
 
         start_time = time.perf_counter()
 
-        qs = annotate_friendship_status(non_blocked_users, user)
+        qs = annotate_friendship_status(visible_users, user)
         qs = annotate_similarity_score(qs, user)
         qs = annotate_user_interactions(qs, user)
 

@@ -24,6 +24,7 @@ from .serializers import (
     CustomUserDetailsSerializer,
     )
 from relations.models import Friendship, MatchInteraction
+from preferences.services import filter_privacy_visible_users
 from matches.querysets import annotate_similarity_score
 from relations.querysets import annotate_friendship_status, annotate_user_interactions
 from globals.utils import exclude_blocked_users
@@ -148,7 +149,7 @@ class DeleteUserView(generics.DestroyAPIView):
 
 
 class PublicUserDetailView(generics.RetrieveAPIView):
-    
+
     serializer_class = PublicUserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = 'uid'
@@ -157,10 +158,11 @@ class PublicUserDetailView(generics.RetrieveAPIView):
         user = self.request.user
 
         qs = exclude_blocked_users(User.objects.all(), user)
+        qs = filter_privacy_visible_users(qs, user)
         
         qs = annotate_friendship_status(qs, user)
         qs = annotate_similarity_score(qs, user)
         qs = annotate_user_interactions(qs, user)
 
-        return qs.select_related('image')
+        return qs.select_related('image', 'privacy_preferences')
 

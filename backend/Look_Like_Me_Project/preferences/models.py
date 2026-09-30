@@ -36,7 +36,7 @@ class PrivacyPreference(models.Model):
     )
 
     updated_at = models.DateTimeField(auto_now=True)
-   
+
 
     def __str__(self):
         return f'Privacy settings for {self.user}\n[Profile Visibility: {self.profile_visibility}\nMatch Visibility: {self.match_visibility}]'
