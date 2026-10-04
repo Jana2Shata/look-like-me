@@ -171,7 +171,7 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
         viewer = request.user
 
         if viewer.id == obj.id:
-            return request.build_absolute_uri(image.facial_image.url)
+            return image.get_display_url(request=request)
 
         preference = getattr(obj, 'privacy_preferences', None)
         visibility = (
@@ -182,16 +182,16 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
 
         # privacy Checks
         if visibility == PrivacyPreference.MatchVisibility.ME_ONLY:
-            return None
+            return image.get_display_url(request=request, blurred=True)
 
         if visibility == PrivacyPreference.MatchVisibility.FRIENDS_ONLY:
             # leverage existing annotation from annotate_friendship_status
             is_friends = getattr(obj, 'is_friends', False)
             if not is_friends:
-                return None
+                return image.get_display_url(request=request, blurred=True)
 
         # return image URL for EVERYONE or passed FRIENDS_ONLY check
-        return request.build_absolute_uri(image.facial_image.url)
+        return image.get_display_url(request=request)
 
     def get_is_liked(self, obj):
         
