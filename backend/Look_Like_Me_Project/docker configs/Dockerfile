@@ -1,17 +1,33 @@
-# Pull base image
-FROM python:3.12.0-slim-bullseye
+# Stable, production-ready base image
+FROM python:3.12-slim-bookworm
 
-# Set environment variables
-ENV PIP_DISABLE_PIP_VERSION_CHECK 1
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8080
 
-# Set work directory
-WORKDIR /code
+WORKDIR /app
 
-# Install dependencies
-COPY ./requirements.txt .
-RUN pip install -r requirements.txt
+# Install system build tools for PostgreSQL (psycopg2)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy project
+# Copy uv binary from Astral image for fast package installation
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Copy requirements.txt from root context and install using uv
+COPY requirements.txt .
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# Copy all project files into container
 COPY . .
+
+EXPOSE 8080
+
+# Production ASGI Server (Gunicorn + Uvicorn worker for WebSockets)
+CMD exec gunicorn core.asgi:application \
+    --bind 0.0.0.0:$PORT \
+    --workers 3 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --timeout 120
