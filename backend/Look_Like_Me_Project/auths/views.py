@@ -1,7 +1,7 @@
 # django imports
 from django.contrib.auth import login, logout
 from django.middleware import csrf
-from django.db.models import Q, OuterRef, Exists, Prefetch
+from django.conf import settings
 
 # rest_framework imports
 from rest_framework import generics, permissions
@@ -9,12 +9,17 @@ from rest_framework.settings import api_settings
 from rest_framework.response import Response
 from rest_framework import status
 
+
 # dj-rest-auth imports
 from dj_rest_auth.serializers import LoginSerializer
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
 
 # knox imports
 from knox.views import LoginView, LogoutView, LogoutAllView
 from knox.auth import TokenAuthentication
+
 
 # local apps import
 from .models import User
@@ -23,7 +28,6 @@ from .serializers import (
     PublicUserProfileSerializer,
     CustomUserDetailsSerializer,
     )
-from relations.models import Friendship, MatchInteraction
 from preferences.services import filter_privacy_visible_users
 from matches.querysets import annotate_similarity_score
 from relations.querysets import annotate_friendship_status, annotate_user_interactions
@@ -165,4 +169,12 @@ class PublicUserDetailView(generics.RetrieveAPIView):
         qs = annotate_user_interactions(qs, user)
 
         return qs.select_related('image', 'privacy_preferences')
+
+
+# SOURCE: https://dev.to/kihuni/how-to-add-google-oauth-to-django-rest-api-29h9
+#         https://dj-rest-auth.readthedocs.io/en/latest/guides/social-auth/?h=goog#2-configure-django-settings
+class GoogleLogin(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+    callback_url = settings.HEADLESS_FRONTEND_URLS.get("google_oauth_callback")
+    client_class = OAuth2Client
 

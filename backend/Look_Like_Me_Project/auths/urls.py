@@ -15,6 +15,7 @@ from .views import (
     LoginView, LogoutView, LogoutAllView, 
     ManageUserView, DeleteUserView,
     PublicUserDetailView, 
+    GoogleLogin,
     )
 
 
@@ -49,6 +50,8 @@ urlpatterns = [
     # re_path(r'password/reset/confirm/?$', PasswordResetConfirmView.as_view(), name='rest_password_reset_confirm'),
     re_path(r'password/reset/confirm/?$', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     re_path(r'password/change/?$', PasswordChangeView.as_view(), name='rest_password_change'),
+
+    path('google/', GoogleLogin.as_view(), name='google_login'),
 
     
 ]

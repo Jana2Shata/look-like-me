@@ -1,4 +1,5 @@
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 
@@ -45,3 +46,22 @@ class CustomAllauthAccountAdapter(DefaultAccountAdapter):
     #             "expire_days_label": "day" if expire_days == 1 else "days",
     #         },
     #     )
+
+# SOURCE: https://dev.to/kihuni/how-to-add-google-oauth-to-django-rest-api-29h9
+#         https://dj-rest-auth.readthedocs.io/en/latest/guides/social-auth/?h=goog#2-configure-django-settings
+class CustomAllauthSocialAccountAdapter(DefaultSocialAccountAdapter):
+    def save_user(self, request, sociallogin, form=None):
+        # Let allauth create the base user instance
+        user = super().save_user(request, sociallogin, form)
+        
+        # Access the raw data returned by Google
+        extra_data = sociallogin.account.extra_data
+        
+        # Example of pulling Google profile details
+        gender = extra_data.get("gender")
+        birthday = extra_data.get("birthday", "")
+        
+        # Update the user model or related Profile model fields
+        user.gender = gender
+        user.birth_date = birthday
+        user.save()
