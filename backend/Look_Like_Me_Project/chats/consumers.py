@@ -1,10 +1,22 @@
-from urllib.parse import parse_qs
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
-from .services import ChatService   
+from urllib.parse import parse_qs
+from .services import ChatService 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
+    """
+    Handles real-time WebSocket connections for chat conversations using Django Channels
+    Manages authentication checks, account UID validation, permission/access verification, 
+    channel group subscriptions, and real-time event routing (typing indicators, messages, deletions)
+    """
 
     async def connect(self):
+        """
+        Handles WebSocket connection establishment:
+        - Validates that the user is authenticated
+        - Verifies query parameters match the authenticated user's UID
+        - Validates consumer access permissions via ChatService
+        - Joins the conversation room group and user-specific notification group
+        """
         self.user = self.scope.get('user')
         
         # store session_key on connect
@@ -38,6 +50,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=close_code)
             return
 
+        # Add to room group and user-specific group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -50,7 +63,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         await self.accept()
 
+
     async def disconnect(self, close_code):
+        """Removes the connection from all channel groups upon disconnection"""
         if hasattr(self, 'room_group_name'):
             await self.channel_layer.group_discard(
                 self.room_group_name,
@@ -63,8 +78,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 self.channel_name
             )
 
-    async def access_revoked(self, event):
 
+    async def access_revoked(self, event):
+        """Closes the WebSocket connection if the user's access has been globally revoked"""
         revoked_uids = event.get("user_uids", [])
 
         if str(self.user.uid) in revoked_uids:
@@ -72,10 +88,12 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
 
     async def user_logout(self, event):
-
+        """Closes the WebSocket connection upon user logout"""
         await self.close(code=4001) 
 
+
     async def receive_json(self, content):
+        """Handles incoming JSON frames from the client"""
         action = content.get('action')
 
         if action == 'typing':
@@ -98,8 +116,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 }
             )
 
-    async def chat_message_event(self, event):
 
+    async def chat_message_event(self, event):
+        """Re-validates access and broadcasts new chat message events down to the client"""
         can_access, code = await ChatService.validate_consumer_access(
             self.user, 
             self.conversation_uid,
@@ -115,8 +134,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             'data': event['message']
         })
 
-    async def message_deleted_event(self, event):
 
+    async def message_deleted_event(self, event):
+        """Re-validates access and broadcasts message deletion events to the client"""
         can_access, code = await ChatService.validate_consumer_access(
             self.user, 
             self.conversation_uid,
@@ -132,7 +152,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             'message_uid': event['message_uid']
         })
 
+
     async def typing_event(self, event):
+        """Forwards typing indicator events to the client, excluding the sender"""
         if event['sender_uid'] != str(self.user.uid):
             await self.send_json({
                 'action': 'user_typing',

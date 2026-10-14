@@ -1,33 +1,33 @@
-from django.db import models
-from auths.models import User
-from PIL import Image as PILImage, ImageFilter
-from django.core.files.base import ContentFile
-from django.core.validators import FileExtensionValidator
-from pgvector.django import HalfVectorField, HnswIndex
-from django.contrib.postgres.indexes import OpClass
-from django.db.models.functions import Cast
 import io
 import os
 import uuid
+from auths.models import User
+from django.core.files.base import ContentFile
+from django.core.validators import FileExtensionValidator
+from django.db import models
+from PIL import Image as PILImage, ImageFilter
+from pgvector.django import HalfVectorField, HnswIndex
 
 def user_facial_image_path(instance, filename):
-    # Extract file extension
+    """Generates a unique random filename with the original extension for uploaded facial images"""
     extension = filename.split('.')[-1]
     new_filename = f"{uuid.uuid4()}.{extension}"
     return os.path.join('facial_images', new_filename)
 
-# Create your models here.
 class Image(models.Model):
+    """
+    Stores user facial images, their automatically generated blurred variants for privacy, 
+    and 2048-dimensional half-precision vector embeddings indexed via pgvector's HNSW index 
+    for fast vector similarity searches
+    """
 
     uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     user = models.OneToOneField(
         User, 
         on_delete=models.CASCADE, 
-        # verbose='image owner',
         related_name='image',
         )
-    # verbose vs related_name: verbose is for human-readable admin display, related_name is for reverse lookups in code
     
     facial_image = models.ImageField(
         upload_to=user_facial_image_path,
@@ -52,20 +52,20 @@ class Image(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
 
-
     class Meta:
         indexes = [
             HnswIndex(
-                    # use this if original vecs where ful precision but want indexing to be half
-                    # useful if applying reranking after indexing
+                # use this if original vecs where ful precision but want indexing to be half
+                # useful if applying reranking after indexing
                 # OpClass(Cast('embedding', HalfVectorField(dimensions=2048)), name='halfvec_cosine_ops'),
+
                 name='embeddings_index',
                 fields=['embedding'],
                     # hyper params. SOURCE: https://milvus.io/ai-quick-reference/what-are-the-key-configuration-parameters-for-an-hnsw-index-such-as-m-and-efconstructionefsearch-and-how-does-each-influence-the-tradeoff-between-index-size-build-time-query-speed-and-recall
                     m=16,
                     ef_construction=200,
                     # ef_search=100, # not supported here, only at query: `cursor.execute("SET LOCAL hnsw.ef_search = 40")`
-                                        # SOURCE: https://github.com/pgvector/pgvector/issues/675
+                    # SOURCE: https://github.com/pgvector/pgvector/issues/675
                 opclasses=['halfvec_cosine_ops']
             ),
         ]
@@ -75,13 +75,13 @@ class Image(models.Model):
         return f"Facial image of {self.user.name}, path at {self.facial_image.url}"
 
     def save(self, *args, **kwargs):
+        """Overrides save to trigger automatic blurred image generation if the image is new or modified"""
         if self.facial_image:
             self._generate_blurred_image()
 
         super().save(*args, **kwargs)
 
     def _generate_blurred_image(self):
-
         """
         generates a Gaussian blurred copy of facial_image using Pillow
         only runs if blurred_facial_image is not yet set or if facial_image changed
@@ -122,7 +122,10 @@ class Image(models.Model):
 
 
     def get_display_url(self, request=None, blurred=False):
-
+        """
+        Retrieves the appropriate file URL (clear or blurred) for display purposes, 
+        optionally building an absolute URI if a request object is provided
+        """
         target_field = self.blurred_facial_image if blurred else self.facial_image
         
         if blurred and not target_field:

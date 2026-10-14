@@ -1,10 +1,14 @@
+import uuid
+from auths.models import User
 from django.db import models
 
-from auths.models import User
-import uuid
 
-# Create your models here.
 class Friendship(models.Model):
+    """
+    Tracks friendship requests and established connections between users
+    Enforces database-level constraints to prevent duplicate bidirectional requests 
+    and self-friendships
+    """
 
     uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
@@ -25,34 +29,32 @@ class Friendship(models.Model):
     class StatusChoices(models.TextChoices):
         PENDING = 'pending', 'Pending'
         ACCEPTED = 'accepted', 'Accepted'
-        # 'declined' is not stored — record is deleted on decline
+        # Note: Declined requests are deleted immediately rather than stored as a status
 
     status = models.CharField(
-        max_length=10, # for memory i guess
+        max_length=10,
         choices=StatusChoices.choices,
         default=StatusChoices.PENDING,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-
     class Meta:
         constraints = [
-        # SOURCE: https://stackoverflow.com/questions/73522447/django-dm-model-constraint-uniqueconstraint-or-checkconstraint
+            # SOURCE: https://stackoverflow.com/questions/73522447/django-dm-model-constraint-uniqueconstraint-or-checkconstraint
+            # Prevents duplicate friend requests from the same user and/or the reverse direction (A -> B and B -> A)
             models.UniqueConstraint(
                 models.functions.Least('sender', 'receiver'),
                 models.functions.Greatest('sender', 'receiver'),
                 name='asymmetric_unique_friendship_pair',
                 violation_error_message='A friendship instance with this user already exists.',
-                # Prevents duplicate friend requests from the same user and/or the reverse direction (A → B and B → A)
             ),
-
+            # Prevents users from sending friend requests to themselves
             models.CheckConstraint(
                 name='self_friendship_constraint',
                 condition= ~models.Q(
                     sender=models.F("receiver")),
-                violation_error_message='Cannot be friends with self!'
-                # Prevents self-friendship    
+                violation_error_message='Cannot be friends with self!'  
             ),
         ]
 
@@ -66,7 +68,7 @@ class Friendship(models.Model):
 
 class MatchInteraction(models.Model):
     """
-    Tracks likes and saves between users.
+    Tracks positive interactions (likes and saves) between users in discovery feeds
     """
 
     uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
@@ -94,22 +96,14 @@ class MatchInteraction(models.Model):
         choices=TypeChoices.choices,
     )
 
-
     created_at = models.DateTimeField(auto_now_add=True)
-
-    # deleted_at = models.DateTimeField(
-    #     null=True,
-    #     # Soft delete: null means not deleted, timestamp means when it was deleted
-    # )
-
-
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=['sender', 'receiver', 'type'],
                 name='unique_sender_receiver_type'
-                )
+            )
         ]
 
     def __str__(self):
@@ -117,9 +111,11 @@ class MatchInteraction(models.Model):
     
 
 
-
 class BlockedUser(models.Model):
-
+    """
+    Manages block relationships between users, preventing blocked accounts 
+    from interacting, messaging, or appearing in match feeds
+    """
     uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     sender = models.ForeignKey(
@@ -132,7 +128,7 @@ class BlockedUser(models.Model):
     receiver = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='+'  # Disables reverse lookup (user.blocked_by)
+        related_name='+'  # Disables reverse lookup on the User model (user.blocked_by) for privacy
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -142,14 +138,13 @@ class BlockedUser(models.Model):
             models.UniqueConstraint(
                 fields=['sender', 'receiver'],
                 name='unique_block_pair'
-                )
+            )
         ]
 
         indexes = [
+            # Optimized index on receiver to efficiently check if a user has been blocked by anyone
             models.Index(fields=['receiver'], name='idx_blocked_id'),
-        ] # Extra index on receiver_id:
-        # needed to check "has this user been blocked by anyone?" efficiently
-        
+        ]         
 
     def __str__(self):
         return f'{self.sender} blocked {self.receiver}'

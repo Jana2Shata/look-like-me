@@ -31,8 +31,7 @@ def filter_privacy_visible_users(queryset, user):
     """
     Keep users if:
     1. Their profile is PUBLIC
-    2. Their profile is HIDDEN but they are accepted friends
-        with the requesting user
+    2. Their profile is HIDDEN but they are accepted friends with the requesting user
     3. They have no PrivacyPreference record (default = PUBLIC)
     """
 

@@ -19,19 +19,24 @@ from matches.querysets import annotate_similarity_score
 from globals.utils import get_blocked_user_ids
 
 class MessageCursorPagination(CursorPagination):
-
+    """Cursor-based pagination configuration for chat messages, ordered chronologically (newest first)"""
     page_size = 25
     ordering = ('-created_at', 'id')
 
 
 class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only viewset for managing user conversations and real-time messaging interactions
+    Provides custom actions for direct user lookups, message dispatching, pagination, 
+    read receipt updates, and message deletions
+    """
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = ConversationListSerializer
     lookup_field = 'uid'
 
     def get_serializer_context(self):
-
+        """Injects blocked user IDs into the serializer context for privacy filtering"""
         context = super().get_serializer_context()
 
         if self.request and self.request.user.is_authenticated:
@@ -39,11 +44,16 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
         return context
 
     def get_queryset(self):
-
+        """
+        Optimized queryset for conversation list views:
+        - Filters threads belonging to the authenticated user
+        - Annotates unread message counts using subqueries and fallback datetimes
+        - Prefetches participants and the latest non-deleted message with similarity and friendship annotations
+        - Supports optional name-based search filtering on other participants
+        """
         user = self.request.user
 
         users_qs = User.objects.select_related('image', 'privacy_preferences')
-
         users_qs = annotate_similarity_score(users_qs, user)
         users_qs = annotate_friendship_status(users_qs, user)
 
@@ -111,7 +121,7 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], url_path=r'direct/(?P<user_uid>[^/.]+)')
     def direct_lookup(self, request, user_uid=None):
-
+        """Looks up and returns an existing direct conversation thread with a specific user UID"""
         if str(request.user.uid) == str(user_uid):
             raise ValidationError({"detail": "You cannot look up a conversation with yourself"})
 
@@ -135,7 +145,7 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='send')
     def send_message(self, request):
-
+        """Validates payload data and dispatches a new chat message via ChatService"""
         serializer = SendMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -154,11 +164,10 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='messages')
     def messages(self, request, uid=None):
-
+        """Retrieves cursor-paginated message history for a specific conversation thread"""
         conversation = self.get_object()
 
         users_qs = User.objects.select_related('image', 'privacy_preferences')
-
         users_qs = annotate_similarity_score(users_qs, request.user)
         users_qs = annotate_friendship_status(users_qs, request.user)
 
@@ -180,8 +189,6 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
 
         response = paginator.get_paginated_response(serializer.data)
 
-        # response.data['other_participant'] = MinimalUserProfileSerializer(other_participant.user).data if other_participant else None
-
         if other_participant and other_participant.user:
 
             blocked_user_ids = serializer_context.get('blocked_user_ids', set())
@@ -199,7 +206,7 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='read')
     def mark_as_read(self, request, uid=None):
-
+        """Updates the participant's 'last_read_at' timestamp to the current time"""
         conversation = self.get_object()
         participant = get_object_or_404(ConversationParticipant, conversation=conversation, user=request.user)
         participant.last_read_at = timezone.now()
@@ -209,6 +216,6 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['delete'], url_path='messages/(?P<message_uid>[^/.]+)')
     def delete_message(self, request, message_uid=None):
-
+        """Soft deletes a specific message via ChatService based on its message UID"""
         ChatService.delete_own_message(user=request.user, message_uid=message_uid)
         return Response({"status": "message deleted"}, status=status.HTTP_200_OK)

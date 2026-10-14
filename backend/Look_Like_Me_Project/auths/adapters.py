@@ -4,17 +4,32 @@ from django.contrib.sites.shortcuts import get_current_site
 
 
 # Custom adapter to enable passing the expiry dates to the email template
-    # FROM: CLAUDE https://claude.ai/share/8b142b17-5011-4ed7-a357-dc7fce9274d2
+# FROM: CLAUDE https://claude.ai/share/8b142b17-5011-4ed7-a357-dc7fce9274d2
 
 class CustomAllauthAccountAdapter(DefaultAccountAdapter):
 
+    """
+    Custom allauth account adapter tailored for headless architectures.
+    Overrides default backend behavior to route authentication URLs (such as 
+    password resets and email verifications) directly to frontend application routes 
+    and customizes email subjects with dynamic site names
+    """
+
     def format_email_subject(self, subject):
+        """
+        Customizes the subject line of outgoing account emails.
+        Prepends the current site's name to the original subject
+        """
         # Get the site name dynamically
         site = get_current_site(self.request)
         # Return your custom format: "Site Name - Subject"
         return f"{site.name} - {subject}"
 
     def get_reset_password_from_key_url(self, key: str) -> str:
+        """
+        Returns the frontend URL for the password reset confirmation step,
+        appending the reset key as required by the frontend router
+        """
         return settings.HEADLESS_FRONTEND_URLS["account_reset_password_from_key"]
     # .format(uid=self.request.GET.get("uid"), token=key)
 
@@ -23,9 +38,9 @@ class CustomAllauthAccountAdapter(DefaultAccountAdapter):
     def get_email_confirmation_url(self, request, emailconfirmation):
 
         """
-            Changing the confirmation URL to point to the frontend instead of the default allauth backend URL.
+        Changing the confirmation URL to point to the frontend
+        instead of the default allauth backend URL
         """
-
         url = (
             settings.HEADLESS_FRONTEND_URLS["email_verification"]
             + emailconfirmation.key

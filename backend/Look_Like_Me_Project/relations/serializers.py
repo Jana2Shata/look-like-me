@@ -1,24 +1,30 @@
-from rest_framework.serializers import (
-    ModelSerializer, SlugRelatedField,
-    HiddenField, CurrentUserDefault,
-    CharField, Serializer,
-    ValidationError, SerializerMethodField
-)
-from rest_framework.validators import UniqueTogetherValidator
-from django.core.exceptions import ValidationError as DjangoValidationError, NON_FIELD_ERRORS
-from rest_framework.settings import api_settings
-
-from .models import Friendship, MatchInteraction, BlockedUser
 from auths.models import User
 from auths.serializers import MinimalUserProfileSerializer
-from globals.utils import NonBlockedUserSlugField  
+from django.core.exceptions import NON_FIELD_ERRORS
+from django.core.exceptions import ValidationError as DjangoValidationError
+from globals.utils import NonBlockedUserSlugField
 from preferences.services import filter_privacy_visible_users
+from rest_framework import serializers
+from rest_framework.serializers import (
+    CharField,
+    CurrentUserDefault,
+    HiddenField,
+    ModelSerializer,
+    Serializer,
+    SerializerMethodField,
+    SlugRelatedField,
+    ValidationError,
+)
+from rest_framework.settings import api_settings
+from rest_framework.validators import UniqueTogetherValidator
 
-"""
-    Saves/likes are created/deleted only, not updated.
-    The frontend already works with uid (through the user detail endpoint)
-"""
+from .models import BlockedUser, Friendship, MatchInteraction
+
 class MatchInteractionSerializer(ModelSerializer):
+    """
+    Serializer for creating and listing match interactions (likes and saves)
+    Validates receiver accessibility, prevents self-interactions, and embeds nested profile data
+    """
 
     # Automatically pulls request.user from context and hides the field from input validation
     sender = HiddenField(default=CurrentUserDefault())
@@ -43,7 +49,7 @@ class MatchInteractionSerializer(ModelSerializer):
         ]
 
     def validate_receiver(self, receiver):
-
+        """Validates that the receiver is not the sender, is not blocked, and has a visible profile"""
         user = self.context['request'].user
 
         if receiver.id == user.id:
@@ -68,11 +74,9 @@ class MatchInteractionSerializer(ModelSerializer):
             )
 
         return receiver
-
-
     
-    # replace string uid with full nested receiver profile data
     def to_representation(self, instance):
+        """Replaces the receiver UID string with full nested user profile data"""
         rep = super().to_representation(instance)
         rep['receiver'] = MinimalUserProfileSerializer(
             instance.receiver,
@@ -80,8 +84,12 @@ class MatchInteractionSerializer(ModelSerializer):
         ).data
         return rep
 
-
 class SendFriendshipSerializer(ModelSerializer):
+    """
+    Serializer for sending new friendship requests
+    Enforces model-level constraints by invoking full_clean() during validation 
+    to handle bidirectional uniqueness and self-friendship checks
+    """
 
     # Automatically pulls request.user from context and hides the field from input validation
     sender = HiddenField(default=CurrentUserDefault())
@@ -98,25 +106,21 @@ class SendFriendshipSerializer(ModelSerializer):
         read_only_fields = ['created_at', 'status']
         
 
-
     def validate(self, attrs):
-        # Since we re-defined the fields, the default serializer behavior ignores the model's constraints.
-        # so here we re-enforce validation by calling model.full_clean()
+        """
+        Re-enforces model-level constraints (asymmetric uniqueness and self-friendship checks) 
+        by instantiating the model and running full_clean(), mapping Django errors to DRF format
+        """
         # SOURCE: https://docs.djangoproject.com/en/6.1/ref/models/instances/#validating-objects
 
         instance = Friendship(
             sender=attrs['sender'],
             receiver=attrs['receiver'],
-            # status=attrs.get('status')
-            # status is defaulted to 'pending' at the model
-            # CONSIDER: will this work for accepting/declining?
         )
         try:
             instance.full_clean(exclude=['uid', 'created_at'])
-            # auto-populated fields, so unnecessary to validate their values
 
-        except DjangoValidationError as e:
-                        
+        except DjangoValidationError as e:          
             error_dict = e.message_dict
 
             if NON_FIELD_ERRORS in error_dict:
@@ -131,10 +135,12 @@ class SendFriendshipSerializer(ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        """Saves and returns the stashed friendship instance"""
         self._instance.save() # Otherwise default create() re-calls Friendship(**validated_data), which creates a redundant second model instance
         return self._instance
 
     def to_representation(self, instance):
+        """Replaces the receiver UID with a nested user profile representation"""
         rep = super().to_representation(instance)
         rep['receiver'] = MinimalUserProfileSerializer(
             instance.receiver,
@@ -142,12 +148,11 @@ class SendFriendshipSerializer(ModelSerializer):
         ).data
         return rep
 
-
 class ReceiveFriendshipSerializer(ModelSerializer):
     """
-    Used only for accepting a friendship request (PUT).
+    Used only for accepting a friendship request (PUT)
     No client-writable fields — status is set programmatically via perform_update,
-    sender/receiver are already fixed on the existing instance and identified via the URL.
+    sender/receiver are already fixed on the existing instance and identified via the URL
     """
     sender = SlugRelatedField(
             slug_field='uid',
@@ -159,6 +164,7 @@ class ReceiveFriendshipSerializer(ModelSerializer):
         read_only_fields = fields  # nothing is writable from the client's payload
 
     def to_representation(self, instance):
+        """Replaces the sender UID with a nested user profile representation"""
         rep = super().to_representation(instance)
         rep['sender'] = MinimalUserProfileSerializer(
             instance.sender,
@@ -168,7 +174,7 @@ class ReceiveFriendshipSerializer(ModelSerializer):
 
 class AcceptedFriendshipSerializer(ModelSerializer):
     """
-    Used only for listing accepted friendship records (GET).
+    Used only for listing accepted friendship records (GET)
     No client-writable fields
     """
 
@@ -180,16 +186,19 @@ class AcceptedFriendshipSerializer(ModelSerializer):
         read_only_fields = fields  # nothing is writable from the client's payload
 
     def get_user(self, obj):
+        """Determines whether the counterparty is the sender or receiver and returns their profile"""
         request = self.context.get('request')
         target_user = obj.receiver if obj.sender == request.user else obj.sender
         return MinimalUserProfileSerializer(target_user, context=self.context).data
 
-
 class BlockedUserSerializer(ModelSerializer):
+    """
+    Serializer for blocking users that validates against self-blocking and duplicate block records, 
+    and returns nested receiver profile data
+    """
 
     sender = HiddenField(default=CurrentUserDefault())
 
-    # validates and looks up target receiver by 'uid' during POST
     receiver = NonBlockedUserSlugField(
         queryset=User.objects.all(),
         slug_field='uid'
@@ -201,20 +210,20 @@ class BlockedUserSerializer(ModelSerializer):
         read_only_fields = ['created_at']
 
     def validate(self, attrs):
+        """Validates that users cannot block themselves or create duplicate block records"""
         sender = attrs['sender']
         receiver = attrs['receiver']
 
-        # prevent self-blocking
         if sender == receiver:
             raise ValidationError("You cannot block yourself")
 
-        # prevent duplicate blocks
         if BlockedUser.objects.filter(sender=sender, receiver=receiver).exists():
             raise ValidationError("This user is already blocked")
 
         return attrs
     
     def to_representation(self, instance):
+        """Replaces the receiver UID with a nested user profile representation"""
         rep = super().to_representation(instance)
         rep['receiver'] = MinimalUserProfileSerializer(
             instance.receiver,

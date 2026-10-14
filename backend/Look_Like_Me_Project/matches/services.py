@@ -3,7 +3,7 @@ import certifi
 import httpx
 from rest_framework import status
 from django.conf import settings
-import mimetypes
+
 
 # Defensively remove these if they exist in your Windows environment.
 # (Programs like PostgreSQL or old VPNs often set these to paths that don't exist, 
@@ -12,9 +12,22 @@ os.environ.pop('SSL_CERT_FILE', None)
 os.environ.pop('SSL_CERT_DIR', None)
 
 
-
-
 async def async_embed_face(payload):
+    """
+    Sends a facial image payload asynchronously to the AI embedding service 
+    and returns the resulting embeddings or rejection details
+
+    Args:
+        payload: The uploaded image file object (containing name, read method, and content_type)
+
+    Returns:
+        A structured dictionary containing:
+            - success (bool): True if accepted, False otherwise
+            - detail (str): Descriptive message from the AI service
+            - reason (str|None): Rejection reason if applicable
+            - embedding (list|None): 2048-dimensional vector embedding if successful
+            - status_code (int): Corresponding HTTP status code
+    """
     ai_url = settings.HEADLESS_AI_URLS['embed']
     
     # Using an async context manager ensures connections are closed properly
@@ -66,27 +79,3 @@ async def async_embed_face(payload):
                 "status_code": status.HTTP_503_SERVICE_UNAVAILABLE
             }
         
-
-
-
-
-
-# def get_image_payload(image_instance):
-#     """
-#     Reads a saved model's ImageField and returns file metadata.
-#     """
-#     # 1. Open and read the raw bytes from storage
-#     with image_instance.image.open('rb') as f:
-#         file_content = f.read()
-
-#     # 2. Extract clean filename (removes path prefixes)
-#     file_name = os.path.basename(image_instance.image.name)
-
-#     # 3. Guess content type from filename ('image/jpeg', 'image/png', etc.)
-#     content_type, _ = mimetypes.guess_type(image_instance.image.name)
-    
-#     return {
-#         "file_name": file_name,
-#         "file_content": file_content,
-#         "content_type": content_type or "image/jpeg"  # Fallback if unknown
-#     }

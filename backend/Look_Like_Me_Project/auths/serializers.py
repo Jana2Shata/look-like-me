@@ -1,35 +1,45 @@
-from dj_rest_auth.registration.serializers import (
-    RegisterSerializer, _signup_field_required,
-    )
-from dj_rest_auth.serializers import (
-    UserDetailsSerializer, PasswordResetConfirmSerializer,
-    PasswordResetSerializer, PasswordChangeSerializer,
-    )
-from rest_framework import serializers
-from rest_framework.validators import UniqueValidator
 from allauth.account.adapter import get_adapter
 from allauth.account.utils import user_pk_to_url_str
+from dj_rest_auth.registration.serializers import (
+    RegisterSerializer,
+    _signup_field_required,
+)
+from dj_rest_auth.serializers import (
+    PasswordChangeSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetSerializer,
+    UserDetailsSerializer,
+)
+from django.conf import settings
+from django.db import transaction
 from django_countries.serializer_fields import CountryField
 from django_countries.serializers import CountryFieldMixin
-from django.db import transaction
+from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
+
+from preferences.models import PrivacyPreference
+from relations.models import MatchInteraction
 
 from .models import User
-from relations.models import MatchInteraction
 from .validators import validate_password
-from django.conf import settings
-from preferences.models import PrivacyPreference
 
 # from matches.serializers import ImageSerializer
 
 class CustomRegisterSerializer(RegisterSerializer):
+    """
+    Custom user registration serializer that replaces the default username-based 
+    signup with an email-only model and collects custom user attributes (name, 
+    gender, birth date, country), automatically provisions a default PrivacyPreference 
+    record upon successful user creation
+    """
     "inherit FROM https://github.com/iMerica/dj-rest-auth/blob/master/dj_rest_auth/registration/serializers.py#L233"
     
     username = None  # Remove username field
     email = serializers.EmailField(
         required=_signup_field_required('email'),
         validators=[UniqueValidator(queryset=User.objects.all(),
-                                    message="This email address is already in use.")],
-)
+            message="This email address is already in use.")],
+    )
 
     name = serializers.CharField(required=True)
 
@@ -51,13 +61,14 @@ class CustomRegisterSerializer(RegisterSerializer):
     )
 
     def validate_password1(self, password):
-
+        """Validates password strength against custom project rules"""
         password = validate_password(password)
 
         return super().validate_password1(password)
         
     
     def validate_birth_date(self, value):
+        """Ensures the provided birth date is a valid historical date"""
         from datetime import date
         if value >= date.today():
             raise serializers.ValidationError("Birth date must be in the past.")
@@ -68,6 +79,7 @@ class CustomRegisterSerializer(RegisterSerializer):
 
 
     def get_cleaned_data(self):
+        """Extends base cleaned data with custom user profile attributes"""
         data = super().get_cleaned_data()
         data.update({
             'name': self.validated_data.get('name', ''),
@@ -79,6 +91,7 @@ class CustomRegisterSerializer(RegisterSerializer):
         return data
 
     def save(self, request):
+        """Creates the user, assigns custom profile fields, and initializes privacy settings"""
         adapter = get_adapter()
         user = adapter.new_user(request)
         self.cleaned_data = self.get_cleaned_data()
@@ -99,43 +112,45 @@ class CustomRegisterSerializer(RegisterSerializer):
 
         user.save()
 
+        # Initialize default user privacy settings
         PrivacyPreference.objects.create(user=user)
 
         return user
     
 
-
 class CustomUserDetailsSerializer(UserDetailsSerializer): # Returned login response
-
+    """Returns essential authenticated user details upon login"""
     class Meta:
         model = User
         fields = ('uid', 'email', 'name')
 
-
 class UserProfileSerializer(CountryFieldMixin, serializers.HyperlinkedModelSerializer):
-
+    """Serializer for managing and viewing the current user's full profile"""
     facial_image = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image')
-
         extra_kwargs = {
             'email': {'read_only': True}, 
             'uid': {'read_only': True}, 
             'facial_image': {'read_only': True}, 
-
             'name': {'required': False}, 
         }
 
     def get_facial_image(self, obj):
-        
+        """Builds an absolute URI for the user's facial image if available."""
         request = self.context.get('request')
         image = getattr(obj, 'image', None)
         return request.build_absolute_uri(image.facial_image.url) if image and image.facial_image else None
 
         
 class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer):
+    """
+    Serializer for viewing other users' public profiles
+    Applies privacy visibility rules, returns interaction states (likes/saves/friendship), 
+    and converts distance vector scores into similarity percentages
+    """
 
     # Creates a clickable link pointing to the user's detail view
     url = serializers.HyperlinkedIdentityField(
@@ -159,6 +174,10 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
         read_only_fields = fields
 
     def get_facial_image(self, obj):
+        """
+        Determines whether to show clear, blurred, or no facial image 
+        based on viewer authentication and target user privacy preferences
+        """
         request = self.context.get('request')
         image = getattr(obj, 'image', None)
 
@@ -180,39 +199,42 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
             else PrivacyPreference.MatchVisibility.EVERYONE
         )
 
-        # privacy Checks
+        # Apply visibility and privacy checks
         if visibility == PrivacyPreference.MatchVisibility.ME_ONLY:
             return image.get_display_url(request=request, blurred=True)
 
         if visibility == PrivacyPreference.MatchVisibility.FRIENDS_ONLY:
-            # leverage existing annotation from annotate_friendship_status
             is_friends = getattr(obj, 'is_friends', False)
             if not is_friends:
                 return image.get_display_url(request=request, blurred=True)
 
-        # return image URL for EVERYONE or passed FRIENDS_ONLY check
         return image.get_display_url(request=request)
+    
 
     def get_is_liked(self, obj):
-        
+        """Checks if the requesting user has liked this profile"""
         if hasattr(obj, 'is_liked'):
             return obj.is_liked
             
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return False
+        
         return MatchInteraction.objects.filter(sender=request.user, receiver=obj, type='like').exists()
 
     def get_is_saved(self, obj):
+        """Checks if the requesting user has saved this profile."""
         if hasattr(obj, 'is_saved'):
             return obj.is_saved
             
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return False
+        
         return MatchInteraction.objects.filter(sender=request.user, receiver=obj, type='save').exists()
 
     def get_friendship_status(self, obj):
+        """Evaluates friendship state between viewer and target user"""
         if getattr(obj, 'is_friends', False):
             return 'friends'
         if getattr(obj, 'is_pending_sent', False):
@@ -222,13 +244,14 @@ class PublicUserProfileSerializer(CountryFieldMixin, serializers.ModelSerializer
         return None
 
     def get_similarity_score(self, obj):
-
+        """Converts annotated vector distance into a normalized similarity score"""
         distance = getattr(obj, 'distance', None)
         if distance is not None:
             return round(1.0 - float(distance), 4)
         return None
 
 class MinimalUserProfileSerializer(PublicUserProfileSerializer):
+    """Lightweight variant of PublicUserProfileSerializer supporting compact payloads"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -245,6 +268,7 @@ class MinimalUserProfileSerializer(PublicUserProfileSerializer):
 
     @classmethod
     def get_unavailable_payload(cls, compact=False):
+        """Provides a safe default placeholder payload for deleted or blocked users"""
         payload = {
             "uid": None,
             "name": "Unavailable User",
@@ -266,16 +290,16 @@ class MinimalUserProfileSerializer(PublicUserProfileSerializer):
         return payload
 
 class ValidationPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
-    
+    """Enforces strict custom password rules during password reset confirmation"""
+
     def custom_validation(self, attrs):
 
         password = attrs.get('new_password1', '')
         password = validate_password(password)
         return get_adapter().clean_password(password)
 
-        
-
 class ValidationPasswordChangeSerializer(PasswordChangeSerializer):
+    """Enforces strict custom password rules during active user password changes"""
 
     def custom_validation(self, attrs):
 
@@ -286,10 +310,12 @@ class ValidationPasswordChangeSerializer(PasswordChangeSerializer):
 
 # SOURCE: traversing dj-rest-auth source codes with claude's help
 def frontend_password_reset_url_generator(request, user, temp_key):
-        uid = user_pk_to_url_str(user)
-        return settings.HEADLESS_FRONTEND_URLS["account_reset_password_from_key"].format(uid=uid, token=temp_key)
+    """Generates a frontend-targeted URL containing the user UID and reset token"""
+    uid = user_pk_to_url_str(user)
+    return settings.HEADLESS_FRONTEND_URLS["account_reset_password_from_key"].format(uid=uid, token=temp_key)
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):
+    """Overrides password reset email options to point directly to the frontend application"""
 
     def get_email_options(self):
         return {
