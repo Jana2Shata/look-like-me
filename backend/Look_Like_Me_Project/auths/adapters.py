@@ -1,11 +1,11 @@
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 
 
 # Custom adapter to enable passing the expiry dates to the email template
 # FROM: CLAUDE https://claude.ai/share/8b142b17-5011-4ed7-a357-dc7fce9274d2
-
 class CustomAllauthAccountAdapter(DefaultAccountAdapter):
 
     """
@@ -60,3 +60,31 @@ class CustomAllauthAccountAdapter(DefaultAccountAdapter):
     #             "expire_days_label": "day" if expire_days == 1 else "days",
     #         },
     #     )
+
+
+# SOURCE: https://dev.to/kihuni/how-to-add-google-oauth-to-django-rest-api-29h9
+# https://dj-rest-auth.readthedocs.io/en/latest/guides/social-auth/?h=goog#2-configure-django-settings
+class CustomAllauthSocialAccountAdapter(DefaultSocialAccountAdapter):
+    """
+    Custom adapter for django-allauth that intercepts social user creation 
+    to populate extended user model fields from Google OAuth provider metadata
+    """
+    def save_user(self, request, sociallogin, form=None):
+        """
+        Saves the newly authenticated social user and extracts extra profile metadata 
+        (such as gender and birth date) from Google's raw data payload
+        """
+        # Let allauth create the base user instance
+        user = super().save_user(request, sociallogin, form)
+        
+        # Access the raw data returned by Google
+        extra_data = sociallogin.account.extra_data
+        
+        # Example of pulling Google profile details
+        gender = extra_data.get("gender")
+        birthday = extra_data.get("birthday", "")
+        
+        # Update the user model or related Profile model fields
+        user.gender = gender
+        user.birth_date = birthday
+        user.save()

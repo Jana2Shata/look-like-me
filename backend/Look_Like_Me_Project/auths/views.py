@@ -1,9 +1,14 @@
 # django imports
 from django.contrib.auth import login, logout
 from django.middleware import csrf
+from django.conf import settings
+
 
 # dj-rest-auth imports
 from dj_rest_auth.serializers import LoginSerializer
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
 
 # knox imports
 from knox.views import LoginView, LogoutView, LogoutAllView
@@ -12,6 +17,7 @@ from knox.views import LoginView, LogoutView, LogoutAllView
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
+
 
 # local apps import
 from chats.services import ChatService
@@ -170,4 +176,18 @@ class PublicUserDetailView(generics.RetrieveAPIView):
         qs = annotate_user_interactions(qs, user)
 
         return qs.select_related('image', 'privacy_preferences')
+
+class GoogleLogin(SocialLoginView):
+    """
+    API view endpoint for authenticating users via Google OAuth2
+    Integrates Google's OAuth2 adapter, client, and frontend callback routing 
+    to process social login credentials from client applications
+
+    SOURCES:
+        - https://dev.to/kihuni/how-to-add-google-oauth-to-django-rest-api-29h9
+        - https://dj-rest-auth.readthedocs.io/en/latest/guides/social-auth/?h=goog#2-configure-django-settings
+    """
+    adapter_class = GoogleOAuth2Adapter
+    callback_url = settings.HEADLESS_FRONTEND_URLS.get("google_oauth_callback")
+    client_class = OAuth2Client
 

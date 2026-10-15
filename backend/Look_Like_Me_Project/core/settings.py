@@ -53,6 +53,10 @@ CSRF_TRUSTED_ORIGINS = [
     'https://accretionary-snoopily-serenity.ngrok-free.dev',
     'https://onshore-quotable-antelope.ngrok-free.dev',
     'https://igloo-uproot-palace.ngrok-free.dev',
+
+    # based on frontend demand:
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -62,6 +66,10 @@ CORS_ALLOWED_ORIGINS = [
     'https://accretionary-snoopily-serenity.ngrok-free.dev',
     'https://onshore-quotable-antelope.ngrok-free.dev',
     'https://igloo-uproot-palace.ngrok-free.dev',
+
+    # based on frontend demand:
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -106,6 +114,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     'allauth.headless',
     'dj_rest_auth',
     'dj_rest_auth.registration',
@@ -226,23 +235,6 @@ CHANNEL_LAYERS = {
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-        # DATABASES = {
-        #     "default": {
-        #         "ENGINE": "django.db.backends.postgresql",
-        #         # 'ENGINE': 'django_postgres_extensions.backends.postgresql',
-        #         "NAME": "look_like_me_db",
-        #         "USER": "backend_dev",
-        #         "PASSWORD": "RvNt5Yjzhg08Ha7o",
-        #         "HOST": "localhost", #"db",  # set in docker-compose.yml
-        #         "PORT": 5432,  # default postgres port
-        #     }
-        # }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -310,7 +302,8 @@ FRONTEND_URL = 'https://igloo-uproot-palace.ngrok-free.dev'
 HEADLESS_FRONTEND_URLS = {
     "account_reset_password_from_key": FRONTEND_URL +"/reset-password/{uid}/{token}",
     "email_verification": FRONTEND_URL + "/verify-email/",
-    "login": FRONTEND_URL #+ "/login",
+    "login": FRONTEND_URL, #+ "/login",
+    "google_oauth_callback" : FRONTEND_URL + "auth/google/callback",
 }
 
 
@@ -340,6 +333,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'knox.auth.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
+        'allauth.account.auth_backends.AuthenticationBackend', # Handles allauth’s authentication, including Google OAuth
         'django.contrib.auth.backends.ModelBackend', #Default authentication backend, needed for admin
      ],
 
@@ -366,6 +360,7 @@ LOGIN_URL = HEADLESS_FRONTEND_URLS['login'] #"/auths/login/"  # Path users will 
 ACCOUNT_EMAIL_SUBJECT_PREFIX = None
 
 ACCOUNT_ADAPTER = "auths.adapters.CustomAllauthAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "auths.adapters.CustomAllauthSocialAccountAdapter"
 
 ACCOUNT_LOGIN_METHODS = {"email"}  # Use Email / Password authentication
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*'] # Fields marked with an asterisk (e.g. 'username*') are required
@@ -375,6 +370,22 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = None
     # ?: settings.ACCOUNT_EMAIL_REQUIRED is deprecated, use: settings.ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
     # ?: settings.ACCOUNT_USERNAME_REQUIRED is deprecated, use: settings.ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+
+        # The following provider-specific settings will be used for all apps:
+        "SCOPE": [
+            "profile",
+            "email",
+            # Previous are defaults and get handled auto by allauth, but following need custom cloning to the model fields
+            "https://www.googleapis.com/auth/user.birthday.read",
+            "https://www.googleapis.com/auth/user.gender.read",
+        ],
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
+    }
+}
 
 # dj-rest-auth
 REST_AUTH = {

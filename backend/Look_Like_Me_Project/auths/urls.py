@@ -19,12 +19,14 @@ from django.views.generic import TemplateView
 # local imports
 from .views import (
     DeleteUserView,
+    GoogleLogin,
     LoginView,
     LogoutAllView,
     LogoutView,
     ManageUserView,
     PublicUserDetailView,
 )
+
 
 
 urlpatterns = [
@@ -66,5 +68,6 @@ urlpatterns = [
     re_path(r'password/reset/confirm/?$', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     re_path(r'password/change/?$', PasswordChangeView.as_view(), name='rest_password_change'),
 
-    
+    path('google/', GoogleLogin.as_view(), name='google_login'),
+
 ]
