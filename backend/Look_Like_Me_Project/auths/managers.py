@@ -4,8 +4,8 @@ from django.utils.translation import gettext as _
 
 class UserManager(BaseUserManager):
     """
-      Custom user model manager where email is the unique identifier
-      for authentication instead of usernames.
+    Custom user model manager where email is the unique identifier
+    for authentication instead of usernames.
     """
 
     def create_user(self, email, password, **extra_fields):

@@ -48,8 +48,5 @@ class NonBlockedUserSlugField(serializers.SlugRelatedField):
             
         return qs
 
-# Source - https://stackoverflow.com/a/74504921
-# Posted by Alvaro Rodriguez Scelza
-# Retrieved 2026-08-14, License - CC BY-SA 4.0
 
 

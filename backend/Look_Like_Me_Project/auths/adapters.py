@@ -1,20 +1,35 @@
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 
 
 # Custom adapter to enable passing the expiry dates to the email template
-    # FROM: CLAUDE https://claude.ai/share/8b142b17-5011-4ed7-a357-dc7fce9274d2
-
+# FROM: CLAUDE https://claude.ai/share/8b142b17-5011-4ed7-a357-dc7fce9274d2
 class CustomAllauthAccountAdapter(DefaultAccountAdapter):
 
+    """
+    Custom allauth account adapter tailored for headless architectures.
+    Overrides default backend behavior to route authentication URLs (such as 
+    password resets and email verifications) directly to frontend application routes 
+    and customizes email subjects with dynamic site names
+    """
+
     def format_email_subject(self, subject):
+        """
+        Customizes the subject line of outgoing account emails.
+        Prepends the current site's name to the original subject
+        """
         # Get the site name dynamically
         site = get_current_site(self.request)
         # Return your custom format: "Site Name - Subject"
         return f"{site.name} - {subject}"
 
     def get_reset_password_from_key_url(self, key: str) -> str:
+        """
+        Returns the frontend URL for the password reset confirmation step,
+        appending the reset key as required by the frontend router
+        """
         return settings.HEADLESS_FRONTEND_URLS["account_reset_password_from_key"]
     # .format(uid=self.request.GET.get("uid"), token=key)
 
@@ -23,9 +38,9 @@ class CustomAllauthAccountAdapter(DefaultAccountAdapter):
     def get_email_confirmation_url(self, request, emailconfirmation):
 
         """
-            Changing the confirmation URL to point to the frontend instead of the default allauth backend URL.
+        Changing the confirmation URL to point to the frontend
+        instead of the default allauth backend URL
         """
-
         url = (
             settings.HEADLESS_FRONTEND_URLS["email_verification"]
             + emailconfirmation.key
@@ -45,3 +60,31 @@ class CustomAllauthAccountAdapter(DefaultAccountAdapter):
     #             "expire_days_label": "day" if expire_days == 1 else "days",
     #         },
     #     )
+
+
+# SOURCE: https://dev.to/kihuni/how-to-add-google-oauth-to-django-rest-api-29h9
+# https://dj-rest-auth.readthedocs.io/en/latest/guides/social-auth/?h=goog#2-configure-django-settings
+class CustomAllauthSocialAccountAdapter(DefaultSocialAccountAdapter):
+    """
+    Custom adapter for django-allauth that intercepts social user creation 
+    to populate extended user model fields from Google OAuth provider metadata
+    """
+    def save_user(self, request, sociallogin, form=None):
+        """
+        Saves the newly authenticated social user and extracts extra profile metadata 
+        (such as gender and birth date) from Google's raw data payload
+        """
+        # Let allauth create the base user instance
+        user = super().save_user(request, sociallogin, form)
+        
+        # Access the raw data returned by Google
+        extra_data = sociallogin.account.extra_data
+        
+        # Example of pulling Google profile details
+        gender = extra_data.get("gender")
+        birthday = extra_data.get("birthday", "")
+        
+        # Update the user model or related Profile model fields
+        user.gender = gender
+        user.birth_date = birthday
+        user.save()

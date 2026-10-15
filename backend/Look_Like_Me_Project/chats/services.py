@@ -1,24 +1,36 @@
+from asgiref.sync import async_to_sync
+from auths.models import User
+from channels.db import database_sync_to_async
+from channels.layers import get_channel_layer
+from django.contrib.sessions.models import Session
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from auths.models import User
+from relations.models import BlockedUser, Friendship
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from relations.models import Friendship, BlockedUser
-from .models import Conversation, ConversationParticipant, Message
 
-from asgiref.sync import async_to_sync
-from channels.db import database_sync_to_async
-from channels.layers import get_channel_layer
+from .models import Conversation, ConversationParticipant, Message
 from .serializers import MessageSerializer
 
-from django.utils import timezone
-from django.contrib.sessions.models import Session
-
 class ChatService:
+    """
+    Service layer encapsulating core business logic for chat interactions:
+    - Permission and relationship validations (friendships, blocks, self-messaging)
+    - Asynchronous WebSocket session and access verification for consumers
+    - Atomic message creation with race-condition protection (SELECT FOR UPDATE)
+    - Message soft-deletion and real-time WebSocket event broadcasting
+    - Socket and channel revocation upon user logout or block/friendship changes
+    """
 
     @staticmethod
     def validate_can_chat(sender, receiver):
+        """
+        Validates whether two users are permitted to exchange messages based on:
+        - Preventing self-messaging
+        - Ensuring neither user has blocked the other
+        - Verifying an active, accepted friendship exists between them
+        """
         if sender.id == receiver.id:
             raise ValidationError("You cannot message yourself.")
 
@@ -34,10 +46,16 @@ class ChatService:
         ).exists():
             raise PermissionDenied("You can only message accepted friends.")
 
+
     @staticmethod
     @database_sync_to_async
     def validate_consumer_access(user, conversation_uid, session_key=None):
-
+        """
+        Asynchronous helper for WebSocket consumers to validate user access:
+        - Confirms user authentication, active status, and session validity
+        - Verifies user participation in the requested conversation thread
+        - Re-validates chat permissions against the other participant
+        """
         if not user or not user.is_authenticated or not user.is_active:
             return False, 4001
 
@@ -73,8 +91,16 @@ class ChatService:
         except Exception:
             return False, 4003
 
+
     @staticmethod
     def send_message(sender, content, recipient_uid=None, conversation_uid=None, request=None):
+        """
+        Sends a message within an atomic database transaction:
+        - Retrieves an existing conversation or safely initializes a new one with locks
+        - Validates chat permissions between sender and recipient
+        - Saves the message, updates conversation sorting timestamps ('updated_at'), 
+        and dispatches a WebSocket broadcast upon successful transaction commit
+        """
         if not recipient_uid and not conversation_uid:
             raise ValidationError("Either recipient_uid or conversation_uid must be provided.")
 
@@ -92,6 +118,7 @@ class ChatService:
                 recipient = get_object_or_404(User, uid=recipient_uid)
                 ChatService.validate_can_chat(sender, recipient)
 
+                # Prevent race conditions during concurrent conversation creation
                 first_id, second_id = sorted([sender.id, recipient.id])
                 list(User.objects.select_for_update().filter(id__in=[first_id, second_id]).order_by('id'))
 
@@ -130,8 +157,13 @@ class ChatService:
             )
         return message
 
+
     @staticmethod
     def delete_own_message(user, message_uid):
+        """
+        Soft deletes a message sent by the user by setting 'deleted_at', 
+        then broadcasts a deletion event to the conversation room via WebSocket
+        """
         message = get_object_or_404(Message, uid=message_uid)
 
         if message.sender_id != user.id:
@@ -147,7 +179,6 @@ class ChatService:
         serialized_uid = str(message.uid)
 
         # Broadcar deletion event via webSocket
-
         async_to_sync(get_channel_layer().group_send)(
             conversation_room,
             {
@@ -158,9 +189,10 @@ class ChatService:
 
         return message
 
+
     @staticmethod
     def revoke_chat_access_between_users(user_a, user_b):
-
+        """Sends an access revocation signal to active chat connections between two users"""
         channel_layer = get_channel_layer()
         if not channel_layer:
             return
@@ -180,9 +212,10 @@ class ChatService:
                 }
             )
 
+
     @staticmethod
     def revoke_all_user_sockets(user):
-
+        """Sends a logout signal to all active WebSocket connections belonging to a user"""
         channel_layer = get_channel_layer()
         if not channel_layer:
             return

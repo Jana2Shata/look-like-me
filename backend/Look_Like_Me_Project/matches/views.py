@@ -1,36 +1,32 @@
-from asgiref.sync import sync_to_async
-from adrf.views import APIView
-from rest_framework.response import Response
-from rest_framework import status, permissions
-from django.db import IntegrityError
-from pgvector.django import CosineDistance
 import time
-from django.conf import settings
-from django.db.models import Prefetch, Exists, OuterRef, Q
-
-from .serializers import (
-    ImageSerializer,
-    MatchesFeedSerializer,
-    )
-
-from auths.serializers import PublicUserProfileSerializer
-
-from .services import (
-    async_embed_face,
-    )
-from .models import Image
+from adrf.views import APIView
+from asgiref.sync import sync_to_async
 from auths.models import User
-from relations.models import MatchInteraction, Friendship
+from auths.serializers import PublicUserProfileSerializer
+from django.conf import settings
+from django.db import IntegrityError
+from django.db.models import Prefetch
+from globals.utils import exclude_blocked_users
+from pgvector.django import CosineDistance
 from preferences.services import filter_privacy_visible_users
-from .querysets import annotate_similarity_score
+from relations.models import MatchInteraction
 from relations.querysets import annotate_friendship_status, annotate_user_interactions
-from globals.utils import exclude_blocked_users     
+from rest_framework import permissions, status
+from rest_framework.response import Response
 
+from .models import Image
+from .querysets import annotate_similarity_score
+from .serializers import ImageSerializer, MatchesFeedSerializer
+from .services import async_embed_face  
 
 
 class EmbedFaceView(APIView):
-    permission_classes = [permissions.IsAuthenticated] 
+    """
+    Asynchronous view managing user facial image uploads, updates, retrievals, and deletions
+    Communicates with an external AI microservice to generate facial embeddings and stores them securely
+    """
 
+    permission_classes = [permissions.IsAuthenticated] 
 
     def _build_response(self, result_dict):
         """Helper to ensure consistent frontend responses."""
@@ -42,18 +38,18 @@ class EmbedFaceView(APIView):
 
 
     def _get_user_image(self, request):
-                "Helper to wrap the lazy evaluation and DB query in a sync function"
-                # synchronously resolve request.user and fetch the first image
-                return request.user.image # A user has only one image
+        """Synchronously retrieves the user's associated facial image instance"""
+        return request.user.image # A user has only one image
 
 
-
-
-    # Change 'def' to 'async def'
     async def post(self, request):
-
+        """
+        Handles facial image registration:
+        - Validates the uploaded image serializer
+        - Sends the image payload asynchronously to the AI embedding microservice
+        - Saves the image instance and stores the returned vector embedding
+        """
         ser = ImageSerializer(data=request.data)
-        # Notice the syntax: sync_to_async(function)(arguments)
         await sync_to_async(ser.is_valid)(raise_exception=True)  # Validate the incoming data
         
         image_instance = ser.validated_data['facial_image']
@@ -68,7 +64,6 @@ class EmbedFaceView(APIView):
                 await image_instance.asave()
                 val_result["status_code"] = status.HTTP_201_CREATED
                 return self._build_response(val_result)
-
 
             except IntegrityError:
                 return self._build_response({
@@ -88,15 +83,15 @@ class EmbedFaceView(APIView):
             
         else:
             return self._build_response(val_result)
-
-
-
-
+        
 
     async def put(self, request):          
-
+        """
+        Handles facial image updates:
+        - Verifies that an existing facial image is associated with the user
+        - Re-runs AI embedding analysis on the new image payload and updates stored vectors
+        """
         try:
-        # Awaiting the sync function
             image_instance = await sync_to_async(self._get_user_image)(request)
 
         except Exception as e:
@@ -109,8 +104,7 @@ class EmbedFaceView(APIView):
             })
         
         ser = ImageSerializer(image_instance, data=request.data, partial=True)
-        
-        # Validate
+
         await sync_to_async(ser.is_valid)(raise_exception=True)
 
         image_instance = ser.validated_data['facial_image']
@@ -127,9 +121,8 @@ class EmbedFaceView(APIView):
             return self._build_response(val_result)
 
 
-
     async def get(self, request):
-
+        """Retrieves the authenticated user's registered facial image details"""
         try:
             image_instance = await sync_to_async(self._get_user_image)(request)
 
@@ -139,7 +132,6 @@ class EmbedFaceView(APIView):
                 "data": None,
             }, status=status.HTTP_404_NOT_FOUND)
 
-
         serializer = ImageSerializer(image_instance, context={'request': request})
 
         return Response({
@@ -148,9 +140,8 @@ class EmbedFaceView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-
     async def delete(self, request):
-
+        """Permanently deletes the authenticated user's facial image and vector embedding"""
         try:
             image_instance = await sync_to_async(self._get_user_image)(request)
 
@@ -167,9 +158,12 @@ class EmbedFaceView(APIView):
 
     
 
-
-
 class MatchesFeed(APIView):
+    """
+    Computes and returns a discovery feed of compatible matches for the authenticated user 
+    based on pgvector cosine similarity, privacy visibility rules, and friendship states
+    """
+
     permission_classes = [permissions.IsAuthenticated] 
 
     similarity_threshold = 1- settings.AI_HYPER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
@@ -178,7 +172,6 @@ class MatchesFeed(APIView):
     def get(self, request):
 
         user = request.user
-
         user_qs = User.objects.select_related('image', 'privacy_preferences')
 
         # filter out blocked users
@@ -198,7 +191,7 @@ class MatchesFeed(APIView):
         except Image.DoesNotExist:
             return Response(
                 {
-                    "detail": "User has no associated facial image.",
+                    "detail": "User has no associated facial image",
                     'Search_time': None,
                     'data': None
                 },
@@ -207,6 +200,7 @@ class MatchesFeed(APIView):
 
         start_time = time.perf_counter()
 
+        # Annotate friendship status, similarity distance scores, and interactions
         qs = annotate_friendship_status(visible_users, user)
         qs = annotate_similarity_score(qs, user)
         qs = annotate_user_interactions(qs, user)
@@ -249,9 +243,9 @@ class MatchesFeed(APIView):
         )
 
 
-
-
 class TempMatchesFeed(APIView):
+    """Temporary public feed endpoint for testing facial vector similarity matches by user ID"""
+
     permission_classes = [] 
 
     similarity_threshold = 1- settings.AI_HYPER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
@@ -288,8 +282,8 @@ class TempMatchesFeed(APIView):
         images_distances = Image.objects.select_related('user' # efficiently fetch user oand its related objects
             ).annotate(
                 distance=CosineDistance('embedding', user.image.embedding)
-                    ).filter(distance__lt=self.similarity_threshold).order_by('distance'
-                        ).exclude(user=user)[:self.top_k]  # Exclude the current user's image and limit to top 5 matches
+                ).filter(distance__lt=self.similarity_threshold).order_by('distance'
+                    ).exclude(user=user)[:self.top_k]  # Exclude the current user's image and limit to top 5 matches
 
         end_time = time.perf_counter()
 

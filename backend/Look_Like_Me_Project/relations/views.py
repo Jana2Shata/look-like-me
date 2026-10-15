@@ -1,64 +1,80 @@
-from django.db import transaction
-from rest_framework import mixins, viewsets, generics
-from rest_framework import status, permissions, exceptions
-from rest_framework.response import Response
-from rest_framework.generics import get_object_or_404
-from django.db.models import Prefetch, Q
-
-from .querysets import annotate_friendship_status, annotate_user_interactions 
-from matches.querysets import annotate_similarity_score
-from .models import MatchInteraction, Friendship,  BlockedUser
-from .serializers import (
-    SendFriendshipSerializer, ReceiveFriendshipSerializer,
-    AcceptedFriendshipSerializer, BlockedUserSerializer
-    )
-from .mixins import MatchInteractionMixin, FriendshipRequestMixin
 from auths.models import User
-from globals.utils import exclude_blocked_users  
 from chats.services import ChatService
+from django.db import transaction
+from django.db.models import Prefetch, Q
+from django.shortcuts import get_object_or_404
+from globals.utils import exclude_blocked_users
+from matches.querysets import annotate_similarity_score
+from rest_framework import exceptions, generics, mixins, permissions, status
+from rest_framework.response import Response
+
+from .mixins import FriendshipRequestMixin, MatchInteractionMixin
+from .models import BlockedUser, Friendship, MatchInteraction
+from .querysets import annotate_friendship_status, annotate_user_interactions
+from .serializers import (
+    AcceptedFriendshipSerializer,
+    BlockedUserSerializer,
+    ReceiveFriendshipSerializer,
+    SendFriendshipSerializer,
+)
 
 
 class LikesView(MatchInteractionMixin):
+    """API view for listing and managing 'like' interactions sent by the authenticated user"""
+
     type = 'like'
 
     def get_queryset(self):
+        """
+        Retrieves sent 'like' interactions annotated with target user profiles, 
+        friendship statuses, similarity scores, and reciprocal interaction flags.
+        """
         user = self.request.user
         qs = super().get_queryset()
+
         # Annotate the related receiver User objects
         user_qs = annotate_friendship_status(
             User.objects.select_related('image', 'privacy_preferences'), user
         )
         user_qs = annotate_similarity_score(user_qs, user)
         user_qs = annotate_user_interactions(user_qs, user)
+
         return qs.prefetch_related(Prefetch('receiver', queryset=user_qs))
 
 
 class SavesView(MatchInteractionMixin):
+    """API view for listing and managing 'save' interactions sent by the authenticated user"""
+
     type = 'save'
 
     def get_queryset(self):
+        """
+        Retrieves sent 'save' interactions annotated with target user profiles, 
+        friendship statuses, similarity scores, and reciprocal interaction flags
+        """
         user = self.request.user
         qs = super().get_queryset()
+
         user_qs = annotate_friendship_status(
             User.objects.select_related('image', 'privacy_preferences'), user
         )
         user_qs = annotate_similarity_score(user_qs, user)
         user_qs = annotate_user_interactions(user_qs, user)
+
         return qs.prefetch_related(Prefetch('receiver', queryset=user_qs))
 
 
-
 class SenderFriendshipRequestView(FriendshipRequestMixin):
+    """API view for sending, listing, and unsending pending outgoing friendship requests"""
 
     serializer_class = SendFriendshipSerializer
-    lookup_field = 'receiver__uid'       # traverse FK → User.uid
-    lookup_url_kwarg = 'receiver'        # matches the URL capture group name
+    lookup_field = 'receiver__uid' # Traverse FK → User.uid
+    lookup_url_kwarg = 'receiver' # Matches the URL capture group name
 
     def get_queryset(self):
+        """Retrieves pending friendship requests sent by the authenticated user, excluding blocked users"""
         user = self.request.user
-        # Filter requests where the current user is the sender and status is pending
         qs = Friendship.objects.filter(sender=user, status='pending')
-        # Exclude requests sent to users who are now blocked
         qs = exclude_blocked_users(qs, user, user_field='receiver_id')
 
         user_qs = annotate_friendship_status(
@@ -70,23 +86,25 @@ class SenderFriendshipRequestView(FriendshipRequestMixin):
         return qs.prefetch_related(Prefetch('receiver', queryset=user_qs)).order_by('-created_at', 'id')
 
     def post(self, request, *args, **kwargs):
+        """Sends a new friendship request"""
         return self.perform_create(request, *args, **kwargs)
 
     def delete(self, request, *args, **kwargs):
+        """Cancels/unsends a pending outgoing friendship request"""
         return self.perform_delete(request, *args, message='Unsent friendship request successfully', **kwargs)
 
 
 class ReceiverFriendshipRequestView(FriendshipRequestMixin):
+    """API view for listing, accepting, and declining incoming pending friendship requests"""
 
     serializer_class = ReceiveFriendshipSerializer
-    lookup_field = 'sender__uid'       # traverse FK → User.uid
-    lookup_url_kwarg = 'sender'        # matches the URL capture group name
+    lookup_field = 'sender__uid' # Traverse FK → User.uid
+    lookup_url_kwarg = 'sender' # Matches the URL capture group name
 
     def get_queryset(self):
+        """Retrieves pending friendship requests received by the authenticated user, excluding blocked senders"""
         user = self.request.user
-        # Filter requests where the current user is the sender and status is pending
         qs = Friendship.objects.filter(receiver= user, status='pending')
-        # Exclude incoming requests from blocked senders
         qs = exclude_blocked_users(qs, user, user_field='sender_id')
 
         user_qs = annotate_friendship_status(
@@ -98,37 +116,33 @@ class ReceiverFriendshipRequestView(FriendshipRequestMixin):
         return qs.prefetch_related(Prefetch('sender', queryset=user_qs)).order_by('-created_at', 'id')
 
     def put(self, request, *args, **kwargs):
+        """Accepts an incoming friendship request"""
         return self.update(request, *args, **kwargs)
 
     def delete(self, request, *args, **kwargs):
+        """Declines (deletes) an incoming friendship request"""
         return self.perform_delete(request, *args, message='Friendship request declined successfully', **kwargs)
-
 
 
 class FriendshipView(
     mixins.ListModelMixin,
     mixins.DestroyModelMixin,
-    generics.GenericAPIView):
-
-    """
-    A viewset for deleting and listing Friendship instances.
-    """
+    generics.GenericAPIView
+):
+    """API view for listing established friendships and un-friending (removing) connections"""
 
     permission_classes = [permissions.IsAuthenticated] 
     serializer_class = AcceptedFriendshipSerializer
         
-
     def get_queryset(self):
+        """Retrieves accepted friendships where the current user is either sender or receiver"""
         user = self.request.user
-        # Filter friendships where the current user is either the sender or the receiver, and status is 'accepted'
         qs = Friendship.objects.filter(
-        # Q allows for more complex DB queries (beyond mere AND)
-        # The pipe | performs OR, while simple comma , translates as AND
-        Q(sender=user) | Q(receiver=user),
-        status='accepted'
+            Q(sender=user) | Q(receiver=user),
+            status='accepted'
         )
 
-        # Filter both sides of accepted friendships
+        # Exclude accepted connections involving blocked users on either side
         qs = exclude_blocked_users(qs, user, user_field='sender_id')
         qs = exclude_blocked_users(qs, user, user_field='receiver_id')
 
@@ -145,20 +159,18 @@ class FriendshipView(
 
 
     def get(self, request, *args, **kwargs):
+        """Lists all established friendships"""
         return self.list(request, *args, **kwargs) # provided by ListModelMixin
 
 
     def delete(self, request, *args, **kwargs):
+        """Terminates an existing friendship and revokes active chat access between the users"""
         user_uid = kwargs.get('user')
         user = get_object_or_404(User, uid=user_uid)
 
-        deleted_count, detailed_objects_count = self.get_queryset().filter(
+        deleted_count, _ = self.get_queryset().filter(
             Q(receiver=user) | Q(sender=user)).delete() 
-                # get_queryset already filters by type and sender, so we just need to filter by user here
-                # Because of our established logic, where two users can never have more than one friendship record
-                # between them, it's safe to use OR because the user can be either the sender or the receiver, but will
-                # never appear more than once
-                # queryset.delete calls pre and post deletion signals, but skips any overrirden model.delete(). it's fine here
+        
         if not deleted_count:
             raise exceptions.NotFound(f"No existing friendship found with this user.")
 
@@ -167,19 +179,20 @@ class FriendshipView(
         return Response({
             'detail':  f"Friendship cancelled successfully.",
         },
-            status=status.HTTP_200_OK)
+        status=status.HTTP_200_OK)
     
-
 
 class BlockedUserView(
     mixins.ListModelMixin,
-    generics.GenericAPIView):
+    generics.GenericAPIView
+):
+    """API view for listing, creating, and removing user block records"""
 
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = BlockedUserSerializer
 
     def get_queryset(self):
-
+        """Retrieves block records created by the authenticated user"""
         user = self.request.user
 
         receiver_qs = User.objects.select_related('image', 'privacy_preferences')
@@ -192,12 +205,15 @@ class BlockedUserView(
         ).order_by('-created_at', 'id')
 
     def get(self, request, *args, **kwargs):
+        """Lists all blocked users"""
         return self.list(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-
+        """
+        Creates a block record within an atomic transaction, cleaning up 
+        all existing friendships, match interactions, and revoking real-time chat access upon commit
+        """
         serializer = self.get_serializer(data=request.data, context={'request': request})
-
         serializer.is_valid(raise_exception=True)
 
         sender = request.user
@@ -214,7 +230,8 @@ class BlockedUserView(
             MatchInteraction.objects.filter(
                 Q(sender=sender, receiver=receiver) | Q(sender=receiver, receiver=sender)
             ).delete()
-
+            
+            # Revoke chat access only after the transaction successfully commits
             transaction.on_commit(
                 lambda: ChatService.revoke_chat_access_between_users(sender, receiver)
             )
@@ -225,10 +242,11 @@ class BlockedUserView(
         )
 
     def delete(self, request, *args, **kwargs):
+        """Removes a block record (unblocks a user)"""
         receiver_uid = kwargs.get('receiver')
         receiver = get_object_or_404(User, uid=receiver_uid)
 
-        deleted_count, detailed_objects_count = self.get_queryset().filter(receiver=receiver).delete()
+        deleted_count, _ = self.get_queryset().filter(receiver=receiver).delete()
         if not deleted_count:
             raise exceptions.NotFound("No block record found for this user.")
 

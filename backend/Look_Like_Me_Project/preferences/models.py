@@ -1,9 +1,13 @@
+import uuid
 from django.db import models
 from auths.models import User
-import uuid
 
 # Create your models here.
 class PrivacyPreference(models.Model):
+    """
+    Stores user privacy and visibility configurations in a OneToOne relationship with the User model.
+    Defines choices for overall profile visibility and match feed accessibility.
+    """
 
     uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
