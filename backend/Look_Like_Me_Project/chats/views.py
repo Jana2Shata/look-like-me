@@ -14,6 +14,7 @@ from auths.models import User
 from .serializers import ConversationListSerializer, MessageSerializer, SendMessageSerializer
 from auths.serializers import MinimalUserProfileSerializer 
 from .services import ChatService
+from auths.permissions import IsProfileComplete
 from relations.querysets import annotate_friendship_status
 from matches.querysets import annotate_similarity_score
 from globals.utils import get_blocked_user_ids
@@ -31,7 +32,7 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
     read receipt updates, and message deletions
     """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
     serializer_class = ConversationListSerializer
     lookup_field = 'uid'
 

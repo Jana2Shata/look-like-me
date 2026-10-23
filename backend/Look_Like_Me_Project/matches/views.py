@@ -15,6 +15,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 
 from .models import Image
+from auths.permissions import IsProfileComplete
 from .querysets import annotate_similarity_score
 from .serializers import ImageSerializer, MatchesFeedSerializer
 from .services import async_embed_face  
@@ -26,7 +27,7 @@ class EmbedFaceView(APIView):
     Communicates with an external AI microservice to generate facial embeddings and stores them securely
     """
 
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete] 
 
     def _build_response(self, result_dict):
         """Helper to ensure consistent frontend responses."""
@@ -164,7 +165,7 @@ class MatchesFeed(APIView):
     based on pgvector cosine similarity, privacy visibility rules, and friendship states
     """
 
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete] 
 
     similarity_threshold = 1- settings.AI_HYPER_PARAMS['COSINE_SIM_THRESHOLD'] # convert into distance metric
     top_k = settings.AI_HYPER_PARAMS['TOP_K']

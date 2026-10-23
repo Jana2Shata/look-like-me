@@ -4,6 +4,7 @@ from globals.utils import exclude_blocked_users
 from rest_framework import exceptions, generics, mixins, permissions, status
 from rest_framework.response import Response
 
+from auths.permissions import IsProfileComplete
 from .models import MatchInteraction
 from .serializers import MatchInteractionSerializer 
 
@@ -17,7 +18,7 @@ class MatchInteractionMixin(
     Subclasses must define the `type` attribute
     """
 
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete] 
     serializer_class = MatchInteractionSerializer
     type = None  # This should be set in the subclass to either 'like' or 'save'    
 
@@ -81,7 +82,7 @@ class FriendshipRequestMixin(
     for friendship requests. Subclasses must define serializers and lookup fields.
     """
 
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete] 
     serializer_class = None # Must be overriden by the subclass
     lookup_field = None # Must be overriden by the subclass
     lookup_url_kwarg  = None # Must be overriden by the subclass

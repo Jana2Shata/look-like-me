@@ -8,6 +8,7 @@ from matches.querysets import annotate_similarity_score
 from rest_framework import exceptions, generics, mixins, permissions, status
 from rest_framework.response import Response
 
+from auths.permissions import IsProfileComplete
 from .mixins import FriendshipRequestMixin, MatchInteractionMixin
 from .models import BlockedUser, Friendship, MatchInteraction
 from .querysets import annotate_friendship_status, annotate_user_interactions
@@ -131,7 +132,7 @@ class FriendshipView(
 ):
     """API view for listing established friendships and un-friending (removing) connections"""
 
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete] 
     serializer_class = AcceptedFriendshipSerializer
         
     def get_queryset(self):
@@ -188,7 +189,7 @@ class BlockedUserView(
 ):
     """API view for listing, creating, and removing user block records"""
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
     serializer_class = BlockedUserSerializer
 
     def get_queryset(self):
