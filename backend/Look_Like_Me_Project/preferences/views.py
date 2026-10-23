@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions
+from auths.permissions import IsProfileComplete
 from .models import PrivacyPreference
 from .serializers import PrivacyPreferenceSerializer
 
@@ -8,7 +9,7 @@ class UserPrivacyPreferenceView(generics.RetrieveUpdateAPIView):
     their profile visibility and match visibility preferences
     """
     serializer_class = PrivacyPreferenceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
 
     def get_object(self):
         """

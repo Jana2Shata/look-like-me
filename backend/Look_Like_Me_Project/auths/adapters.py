@@ -1,6 +1,7 @@
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
+from preferences.models import PrivacyPreference
 from django.contrib.sites.shortcuts import get_current_site
 
 
@@ -77,14 +78,8 @@ class CustomAllauthSocialAccountAdapter(DefaultSocialAccountAdapter):
         # Let allauth create the base user instance
         user = super().save_user(request, sociallogin, form)
         
-        # Access the raw data returned by Google
-        extra_data = sociallogin.account.extra_data
-        
-        # Example of pulling Google profile details
-        gender = extra_data.get("gender")
-        birthday = extra_data.get("birthday", "")
-        
-        # Update the user model or related Profile model fields
-        user.gender = gender
-        user.birth_date = birthday
         user.save()
+
+        PrivacyPreference.objects.create(user=user)
+
+        return user

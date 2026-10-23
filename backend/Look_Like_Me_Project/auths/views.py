@@ -20,6 +20,7 @@ from rest_framework.settings import api_settings
 
 
 # local apps import
+from auths.permissions import IsProfileComplete
 from chats.services import ChatService
 from globals.utils import exclude_blocked_users
 from matches.querysets import annotate_similarity_score
@@ -162,7 +163,7 @@ class PublicUserDetailView(generics.RetrieveAPIView):
     """
 
     serializer_class = PublicUserProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsProfileComplete]
     lookup_field = 'uid'
 
     def get_queryset(self):
@@ -190,4 +191,18 @@ class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = settings.HEADLESS_FRONTEND_URLS.get("google_oauth_callback")
     client_class = OAuth2Client
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.user = serializer.validated_data['user']
+
+
+        login(request, self.user) # creates the session, sets sessionid cookie
+        csrf.get_token(request) # refreshes the csrftoken cookie
+
+        return Response({
+            'expiry': request.session.get_expiry_date(),
+            'user': CustomUserDetailsSerializer(self.user, context={'request': request}).data,
+        })
 
