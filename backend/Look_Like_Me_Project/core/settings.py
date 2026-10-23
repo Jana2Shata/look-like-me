@@ -360,7 +360,9 @@ LOGIN_URL = HEADLESS_FRONTEND_URLS['login'] #"/auths/login/"  # Path users will 
 ACCOUNT_EMAIL_SUBJECT_PREFIX = None
 
 ACCOUNT_ADAPTER = "auths.adapters.CustomAllauthAccountAdapter"
-SOCIALACCOUNT_ADAPTER = "auths.adapters.CustomAllauthSocialAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "auths.adapters.CustomAllauthSocialAccountAdapter" # Tells allauth to skip email verification checks and emails for social logins (like Google)
+
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 
 ACCOUNT_LOGIN_METHODS = {"email"}  # Use Email / Password authentication
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*'] # Fields marked with an asterisk (e.g. 'username*') are required
@@ -374,23 +376,17 @@ SOCIALACCOUNT_PROVIDERS = {
     "google": {
 
         # The following provider-specific settings will be used for all apps:
-        "SCOPE": [
-            "profile",
-            "email",
-            # Previous are defaults and get handled auto by allauth, but following need custom cloning to the model fields
-            "https://www.googleapis.com/auth/user.birthday.read",
-            "https://www.googleapis.com/auth/user.gender.read",
-        ],
+        "SCOPE": ["profile","email",],
         "AUTH_PARAMS": {
             "access_type": "online",
         },
+        "EMAIL_AUTHENTICATION": True, # Allows allauth to match and link Google accounts to existing user accounts based on matching email addresses
     }
 }
 
 # dj-rest-auth
 REST_AUTH = {
     # "PASSWORD_RESET_USE_SITES_DOMAIN": True, # to use frontend's domain in email-sent links, hopefully T^T
-
     "REGISTER_SERIALIZER": "auths.serializers.CustomRegisterSerializer",
     "USER_DETAILS_SERIALIZER":"auths.serializers.CustomUserDetailsSerializer",
     'LOGIN_SERIALIZER': 'dj_rest_auth.serializers.LoginSerializer',
@@ -399,7 +395,7 @@ REST_AUTH = {
     "REST_SESSION_LOGIN": True, # Enable session cookies
 
     'OLD_PASSWORD_FIELD_ENABLED' : True, # to have old password verification on password change enpoint
-        # LOGOUT_ON_PASSWORD_CHANGE - set to False if you want to keep the current user logged in after a password change
+    # LOGOUT_ON_PASSWORD_CHANGE - set to False if you want to keep the current user logged in after a password change
     'PASSWORD_RESET_CONFIRM_SERIALIZER': 'auths.serializers.ValidationPasswordResetConfirmSerializer',
     'PASSWORD_CHANGE_SERIALIZER' : 'auths.serializers.ValidationPasswordChangeSerializer',
     'PASSWORD_RESET_SERIALIZER' : 'auths.serializers.CustomPasswordResetSerializer',
@@ -407,10 +403,9 @@ REST_AUTH = {
 
 
 REST_KNOX = {
-#   'TOKEN_TTL': timedelta(hours=10), # Expired tokens are automatically removed from the system.
-  'USER_SERIALIZER': 'auths.serializers.CustomUserDetailsSerializer',
-  'TOKEN_LIMIT_PER_USER': None,
-
+# 'TOKEN_TTL': timedelta(hours=10), # Expired tokens are automatically removed from the system.
+    'USER_SERIALIZER': 'auths.serializers.CustomUserDetailsSerializer',
+    'TOKEN_LIMIT_PER_USER': None,
 }
 
 

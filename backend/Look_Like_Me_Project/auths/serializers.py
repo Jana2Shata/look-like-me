@@ -1,3 +1,4 @@
+from datetime import date
 from allauth.account.adapter import get_adapter
 from allauth.account.utils import user_pk_to_url_str
 from dj_rest_auth.registration.serializers import (
@@ -21,7 +22,7 @@ from preferences.models import PrivacyPreference
 from relations.models import MatchInteraction
 
 from .models import User
-from .validators import validate_password
+from .validators import validate_password, validate_age_thirteen_plus
 
 # from matches.serializers import ImageSerializer
 
@@ -43,11 +44,9 @@ class CustomRegisterSerializer(RegisterSerializer):
 
     name = serializers.CharField(required=True)
 
-
     gender = serializers.ChoiceField(
         choices=User.GenderChoices.choices,
-        required=False,
-        allow_null=True,
+        required=True,
     )
 
     birth_date = serializers.DateField(
@@ -56,8 +55,7 @@ class CustomRegisterSerializer(RegisterSerializer):
     )
 
     country = CountryField(
-        required=False,
-        allow_null=True,
+        required=True,
     )
 
     def validate_password1(self, password):
@@ -69,13 +67,11 @@ class CustomRegisterSerializer(RegisterSerializer):
     
     def validate_birth_date(self, value):
         """Ensures the provided birth date is a valid historical date"""
-        from datetime import date
         if value >= date.today():
             raise serializers.ValidationError("Birth date must be in the past.")
         if value.year < 1900:
             raise serializers.ValidationError("Enter a valid birth date.")
-        return value
-
+        return validate_age_thirteen_plus(value)
 
 
     def get_cleaned_data(self):
@@ -90,6 +86,7 @@ class CustomRegisterSerializer(RegisterSerializer):
         })
         return data
 
+    @transaction.atomic
     def save(self, request):
         """Creates the user, assigns custom profile fields, and initializes privacy settings"""
         adapter = get_adapter()
@@ -103,13 +100,6 @@ class CustomRegisterSerializer(RegisterSerializer):
         user.birth_date = self.cleaned_data.get('birth_date')
         user.country = self.cleaned_data.get('country')
 
-        # Create profile with extra fields
-        # user.profile.phone_number = self.cleaned_data.get('phone_number')
-        # user.profile.company = self.cleaned_data.get('company')
-        # user.profile.save()
-
-        # self.custom_signup(request, user)
-
         user.save()
 
         # Initialize default user privacy settings
@@ -120,24 +110,46 @@ class CustomRegisterSerializer(RegisterSerializer):
 
 class CustomUserDetailsSerializer(UserDetailsSerializer): # Returned login response
     """Returns essential authenticated user details upon login"""
+
+    are_required_fields_filled = serializers.SerializerMethodField()
     class Meta:
         model = User
-        fields = ('uid', 'email', 'name')
+        fields = ('uid', 'email', 'name', 'gender', 'country', 'are_required_fields_filled')
+
+    def get_are_required_fields_filled(self, obj):
+        """Returns True if gender and country are present"""
+        return bool(obj.gender and obj.country)
 
 class UserProfileSerializer(CountryFieldMixin, serializers.HyperlinkedModelSerializer):
     """Serializer for managing and viewing the current user's full profile"""
     facial_image = serializers.SerializerMethodField()
+    are_required_fields_filled = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image')
+        fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image', 'are_required_fields_filled')
         extra_kwargs = {
             'email': {'read_only': True}, 
             'uid': {'read_only': True}, 
             'facial_image': {'read_only': True}, 
+            'are_required_fields_filled': {'read_only': True},
             'name': {'required': False}, 
+            'gender': {'required': True},
+            'country': {'required': True},
         }
 
+    def validate_birth_date(self, value):
+        """Ensures updated birth date meets historical bounds and 13+ rule"""
+        if value >= date.today():
+            raise serializers.ValidationError("Birth date must be in the past.")
+        if value.year < 1900:
+            raise serializers.ValidationError("Enter a valid birth date.")
+        return validate_age_thirteen_plus(value)
+
+    def get_are_required_fields_filled(self, obj):
+        """Returns True if gender and country are present"""
+        return bool(obj.gender and obj.country)
+    
     def get_facial_image(self, obj):
         """Builds an absolute URI for the user's facial image if available."""
         request = self.context.get('request')

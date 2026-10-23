@@ -34,16 +34,18 @@ class User(AbstractUser):
         null=True,
         blank=False,
         max_length=6,
-        choices=GenderChoices.choices)
+        choices=GenderChoices.choices
+    )
     
     birth_date = models.DateField(
         null=True,
         blank=False,
     ) # not datetime
+
     country = CountryField( # SOURCE: https://pypi.org/project/django-countryfield/
         null=True,
         blank=False,
-        )
+    )
 
     profile_photo = models.ImageField( # so Django validates it's a real image
         upload_to='profile_photos/', 
@@ -51,7 +53,8 @@ class User(AbstractUser):
         blank=True,
         validators=[FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp'])],
         # validators enforce allowed formats at app layer
-        )
+    )
+    
     bio = models.TextField(
         max_length=300,
         null=True,

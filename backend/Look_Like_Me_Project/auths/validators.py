@@ -1,3 +1,4 @@
+from datetime import date
 from rest_framework import serializers
 
 def validate_password(password):
@@ -44,3 +45,13 @@ def validate_password(password):
         raise serializers.ValidationError("Password must contain at least one uppercase and one lowercase letters.")
     
     return password
+
+def validate_age_thirteen_plus(birth_date):
+    """Ensures the user is at least 13 years old"""
+    if not birth_date:
+        return birth_date
+    today = date.today()
+    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+    if age < 13:
+        raise serializers.ValidationError("You must be at least 13 years old to use this website.")
+    return birth_date
