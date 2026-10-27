@@ -303,7 +303,7 @@ HEADLESS_FRONTEND_URLS = {
     "account_reset_password_from_key": FRONTEND_URL +"/reset-password/{uid}/{token}",
     "email_verification": FRONTEND_URL + "/verify-email/",
     "login": FRONTEND_URL, #+ "/login",
-    "google_oauth_callback" : FRONTEND_URL + "auth/google/callback",
+    "google_oauth_callback" : FRONTEND_URL + "api/auth/google/callback",
 }
 
 
@@ -363,6 +363,7 @@ ACCOUNT_ADAPTER = "auths.adapters.CustomAllauthAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "auths.adapters.CustomAllauthSocialAccountAdapter" # Tells allauth to skip email verification checks and emails for social logins (like Google)
 
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True # Automatically links that Google account to the existing local account
 
 ACCOUNT_LOGIN_METHODS = {"email"}  # Use Email / Password authentication
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*'] # Fields marked with an asterisk (e.g. 'username*') are required
