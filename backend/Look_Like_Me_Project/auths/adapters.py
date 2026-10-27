@@ -1,6 +1,9 @@
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from allauth.socialaccount.models import SocialAccount
+from allauth.account.models import EmailAddress
 from django.conf import settings
+from .models import User
 from preferences.models import PrivacyPreference
 from django.contrib.sites.shortcuts import get_current_site
 
@@ -78,8 +81,17 @@ class CustomAllauthSocialAccountAdapter(DefaultSocialAccountAdapter):
         # Let allauth create the base user instance
         user = super().save_user(request, sociallogin, form)
         
-        user.save()
+        extra_data = sociallogin.account.extra_data
+        name = extra_data.get("name") or (
+            f"{extra_data.get('given_name', '')} "
+            f"{extra_data.get('family_name', '')}"
+        ).strip()
 
-        PrivacyPreference.objects.create(user=user)
+        if name and not user.name:
+            user.name = name
+            user.save(update_fields=['name'])
+
+        if not PrivacyPreference.objects.filter(user=user).exists():
+            PrivacyPreference.objects.create(user=user)
 
         return user
