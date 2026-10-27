@@ -50,8 +50,7 @@ class CustomRegisterSerializer(RegisterSerializer):
     )
 
     birth_date = serializers.DateField(
-        required=False,
-        allow_null=True,
+        required=True,
     )
 
     country = CountryField(
@@ -112,22 +111,27 @@ class CustomUserDetailsSerializer(UserDetailsSerializer): # Returned login respo
     """Returns essential authenticated user details upon login"""
 
     are_required_fields_filled = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
     class Meta:
         model = User
-        fields = ('uid', 'email', 'name', 'gender', 'country', 'are_required_fields_filled')
+        fields = ('uid', 'email', 'name', 'gender', 'country', 'are_required_fields_filled', 'has_password',)
 
     def get_are_required_fields_filled(self, obj):
         """Returns True if gender and country are present"""
-        return bool(obj.gender and obj.country)
+        return bool(obj.gender and obj.country and obj.birth_date)
+
+    def get_has_password(self, obj):
+        return obj.has_usable_password()
 
 class UserProfileSerializer(CountryFieldMixin, serializers.HyperlinkedModelSerializer):
     """Serializer for managing and viewing the current user's full profile"""
     facial_image = serializers.SerializerMethodField()
     are_required_fields_filled = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image', 'are_required_fields_filled')
+        fields = ('uid', 'name', 'email', 'gender', 'birth_date', 'country', 'profile_photo', 'bio', 'facial_image', 'are_required_fields_filled','has_password',)
         extra_kwargs = {
             'email': {'read_only': True}, 
             'uid': {'read_only': True}, 
@@ -138,17 +142,31 @@ class UserProfileSerializer(CountryFieldMixin, serializers.HyperlinkedModelSeria
             'country': {'required': True},
         }
 
+
     def validate_birth_date(self, value):
-        """Ensures updated birth date meets historical bounds and 13+ rule"""
         if value >= date.today():
             raise serializers.ValidationError("Birth date must be in the past.")
         if value.year < 1900:
             raise serializers.ValidationError("Enter a valid birth date.")
-        return validate_age_thirteen_plus(value)
+        
+        today = date.today()
+        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+        if age < 13:
+            user = self.instance
+            if user and user.pk:
+                user.delete() 
+            raise serializers.ValidationError({
+                "code": "underage",
+                "detail": "You must be at least 13 years old to use this website."
+            })
+        return value
 
     def get_are_required_fields_filled(self, obj):
         """Returns True if gender and country are present"""
-        return bool(obj.gender and obj.country)
+        return bool(obj.gender and obj.country and obj.birth_date)
+
+    def get_has_password(self, obj):
+        return obj.has_usable_password()
     
     def get_facial_image(self, obj):
         """Builds an absolute URI for the user's facial image if available."""
