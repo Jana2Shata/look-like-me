@@ -153,8 +153,11 @@ class UserProfileSerializer(CountryFieldMixin, serializers.HyperlinkedModelSeria
         age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
         if age < 13:
             user = self.instance
-            if user and user.pk:
-                user.delete() 
+
+            # Delete only if the user had no birth date before this request
+            if user and user.pk and user.birth_date is None:
+                user.delete()
+
             raise serializers.ValidationError({
                 "code": "underage",
                 "detail": "You must be at least 13 years old to use this website."
