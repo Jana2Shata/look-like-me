@@ -297,13 +297,13 @@ SITE_ID = 1 # what is this for? needed for allauth, which is needed for registra
 # Controls the communication between django and ngrok (the temp dev server) to utilize https back and forth
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-FRONTEND_URL = 'https://igloo-uproot-palace.ngrok-free.dev'
+FRONTEND_URL = 'http://localhost:3000'
 
 HEADLESS_FRONTEND_URLS = {
     "account_reset_password_from_key": FRONTEND_URL +"/reset-password/{uid}/{token}",
     "email_verification": FRONTEND_URL + "/verify-email/",
     "login": FRONTEND_URL, #+ "/login",
-    "google_oauth_callback" : FRONTEND_URL + "api/auth/google/callback",
+    "google_oauth_callback" : FRONTEND_URL + "/api/auth/google/callback",
 }
 
 
