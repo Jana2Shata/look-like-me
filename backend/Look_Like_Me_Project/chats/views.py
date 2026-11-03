@@ -1,5 +1,5 @@
 from datetime import datetime
-from django.db.models import Prefetch, Q, Subquery, OuterRef, Count, IntegerField, Value, F
+from django.db.models import Prefetch, Q, Subquery, OuterRef, Count, IntegerField, DateTimeField, Value, F
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -80,22 +80,12 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
             to_attr='prefetched_messages'
         )
 
-        unread_count_subquery = Subquery(
-            Message.objects.filter(
-                conversation_id=OuterRef('pk'),
-                deleted_at__isnull=True,
-                conversation__participants__user_id=user.id
-            ).exclude(
-                sender_id=user.id
-            ).filter(
-                created_at__gt=Coalesce(
-                    F('conversation__participants__last_read_at'),
-                    Value(epoch)
-                )
-            ).values('conversation_id').annotate(
-                cnt=Count('id')
-            ).values('cnt')[:1],
-            output_field=IntegerField()
+        user_last_read_subquery = Subquery(
+            ConversationParticipant.objects.filter(
+                conversation=OuterRef('pk'),
+                user=user
+            ).values('last_read_at')[:1],
+            output_field=DateTimeField()
         )
 
         participant_qs = ConversationParticipant.objects.prefetch_related(
@@ -105,18 +95,34 @@ class ConversationViewSet(viewsets.ReadOnlyModelViewSet):
         qs = Conversation.objects.filter(
             participants__user=user
         ).annotate(
-            unread_count=Coalesce(unread_count_subquery, Value(0))
+            unread_count=Coalesce(
+                Count(
+                    'messages',
+                    filter=(
+                        Q(messages__deleted_at__isnull=True) & 
+                        ~Q(messages__sender_id=user.id) & 
+                        Q(messages__created_at__gt=Coalesce(user_last_read_subquery, Value(epoch)))
+                    ),
+                    distinct=True
+                ),
+                Value(0)
+            )
         ).prefetch_related(
             Prefetch('participants', queryset=participant_qs),
             latest_message_prefetch
         ).distinct().order_by('-updated_at', 'id')
 
+
         search = self.request.query_params.get('search')
         if search:
-            qs = qs.filter(
-                Q(participants__user__name__icontains=search)
-                & ~Q(participants__user=user)
-            )
+            matching_conversation_ids = ConversationParticipant.objects.filter(
+                conversation__participants__user=user,
+                user__name__icontains=search 
+            ).exclude(
+                user=user
+            ).values('conversation_id')
+
+            qs = qs.filter(pk__in=matching_conversation_ids)
 
         return qs.distinct()
 
